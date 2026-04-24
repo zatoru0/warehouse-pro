@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WareHouse Pro — Management System
 
-## Getting Started
+A full-stack Warehouse Management System (ระบบคลัง) built with Next.js 14, Prisma, PostgreSQL (Supabase), and TypeScript.
 
-First, run the development server:
+## Tech Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 14 App Router + TypeScript |
+| Database | PostgreSQL via Supabase |
+| ORM | Prisma |
+| Auth | Supabase Auth |
+| UI | Tailwind CSS + shadcn/ui |
+| Forms | React Hook Form + Zod |
+| Data Fetching | TanStack Query |
+| Charts | Recharts |
+| Barcodes | react-barcode |
+| Notifications | Sonner |
+| Deployment | Vercel |
+
+## Setup
+
+### 1. Supabase Project
+Create a project at supabase.com. Get your credentials from Project Settings.
+
+### 2. Configure .env
+```
+DATABASE_URL="postgresql://postgres.[REF]:[PASS]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://postgres.[REF]:[PASS]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
+NEXT_PUBLIC_SUPABASE_URL="https://[REF].supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="[ANON KEY]"
+SUPABASE_SERVICE_ROLE_KEY="[SERVICE ROLE KEY]"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Push Schema + Seed
+```bash
+npm run db:push    # Apply Prisma schema to Supabase
+npm run db:seed    # Seed warehouses, products, carriers
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. Create Admin User
+In Supabase Dashboard → Authentication → Users → Invite user, then in SQL Editor:
+```sql
+UPDATE users SET role = 'SUPERADMIN' WHERE email = 'your@email.com';
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 5. Run
+```bash
+npm run dev
+```
 
-## Learn More
+## User Roles
+SUPERADMIN | ADMIN | RECEIVING | PRODUCTION | QC | WAREHOUSE | SHIPPING | AFTER_SALES | READONLY
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Modules
+- Dashboard, Inventory, Products, Lots/Batches
+- Receiving (New Goods / Claim / Repair / Parts / Return)
+- QC (inspection queue, pass/fail, certificates)
+- Production (Assembly / Disassembly / Repair + BOM)
+- Orders (Shopee, Lazada, TikTok, Line, Facebook, Walk-in, Claim, Exchange)
+- Shipping (pack, label, dispatch)
+- Warehouses → Zones → Bins (3-layer)
+- Customers, Suppliers, Reports, Notifications, Settings
