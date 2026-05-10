@@ -11,11 +11,13 @@ export async function GET(req: NextRequest) {
   const result = searchParams.get("result");
 
   const records = await prisma.qcRecord.findMany({
-    where: { ...(result && { result: result as any }) },
+    where: { ...(result && { result: result as never }) },
     include: {
-      inspector: { select: { full_name: true } },
-      receiving_job: { select: { job_number: true } },
+      inspector:      { select: { full_name: true } },
+      certifier:      { select: { full_name: true } },
+      receiving_job:  { select: { job_number: true } },
       production_job: { select: { job_number: true } },
+      product:        { select: { name: true, sku: true, allow_certify: true } },
     },
     orderBy: { created_at: "desc" },
     take: 50,

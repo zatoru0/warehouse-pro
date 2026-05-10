@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { format } from "date-fns";
 
@@ -19,18 +17,25 @@ async function getJobs() {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: "bg-amber-500/10 text-amber-400",
-  IN_PROGRESS: "bg-blue-500/10 text-blue-400",
-  COMPLETED: "bg-green-500/10 text-green-400",
-  CANCELLED: "bg-muted text-muted-foreground",
+  PENDING:     "bg-red-600/10 text-red-500",
+  IN_PROGRESS: "bg-blue-500/10 text-blue-600",
+  COMPLETED:   "bg-green-500/10 text-green-600",
+  CANCELLED:   "bg-muted text-muted-foreground",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  PENDING:     "รอดำเนินการ",
+  IN_PROGRESS: "กำลังดำเนินการ",
+  COMPLETED:   "เสร็จสิ้น",
+  CANCELLED:   "ยกเลิก",
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  NEW_GOODS: "New Goods",
-  CLAIM: "Claim",
-  REPAIR: "Repair",
-  PARTS: "Parts",
-  RETURN: "Return",
+  NEW_GOODS: "สินค้าใหม่",
+  CLAIM:     "เคลม",
+  REPAIR:    "ซ่อม",
+  PARTS:     "อะไหล่",
+  RETURN:    "คืนสินค้า",
 };
 
 export default async function ReceivingPage() {
@@ -39,13 +44,14 @@ export default async function ReceivingPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Receiving Jobs</h2>
-        <Button asChild size="sm" className="bg-amber-500 hover:bg-amber-600 text-black font-semibold">
-          <Link href="/receiving/new">
-            <Plus className="mr-1.5 h-4 w-4" />
-            New Receiving
-          </Link>
-        </Button>
+        <h2 className="text-lg font-semibold">งานรับสินค้า</h2>
+        <Link
+          href="/receiving/new"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-2.5 py-1.5 text-[0.8rem] font-semibold text-white hover:bg-red-700"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          รับสินค้าใหม่
+        </Link>
       </div>
 
       <Card>
@@ -54,13 +60,13 @@ export default async function ReceivingPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Job #</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Type</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Supplier</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Lines</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Received By</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">เลขที่งาน</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">ประเภท</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">ผู้จัดหา</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">รายการ</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">ผู้รับสินค้า</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">วันที่</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">สถานะ</th>
                 </tr>
               </thead>
               <tbody>
@@ -69,13 +75,13 @@ export default async function ReceivingPage() {
                     <td className="px-4 py-3">
                       <Link
                         href={`/receiving/${job.id}`}
-                        className="font-mono text-xs font-medium text-amber-400 hover:underline"
+                        className="font-mono text-xs font-medium text-red-500 hover:underline"
                       >
                         {job.job_number}
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
-                      {TYPE_LABELS[job.receiving_type]}
+                      {TYPE_LABELS[job.receiving_type] ?? job.receiving_type}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{job.supplier?.name ?? "—"}</td>
                     <td className="px-4 py-3">{job._count.lines}</td>
@@ -87,7 +93,7 @@ export default async function ReceivingPage() {
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_COLORS[job.status] ?? ""}`}
                       >
-                        {job.status}
+                        {STATUS_LABELS[job.status] ?? job.status}
                       </span>
                     </td>
                   </tr>
@@ -95,7 +101,7 @@ export default async function ReceivingPage() {
                 {jobs.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                      No receiving jobs yet.
+                      ยังไม่มีงานรับสินค้า
                     </td>
                   </tr>
                 )}

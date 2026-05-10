@@ -5,11 +5,10 @@ import { z } from "zod";
 import { WarehouseType } from "@prisma/client";
 
 const warehouseSchema = z.object({
-  code: z.string().min(1),
-  name: z.string().min(1),
+  code:    z.string().min(1),
+  name:    z.string().min(1),
   name_th: z.string().optional().nullable(),
-  type: z.nativeEnum(WarehouseType),
-  address: z.string().optional().nullable(),
+  type:    z.nativeEnum(WarehouseType),
 });
 
 export async function GET(req: NextRequest) {
@@ -19,9 +18,7 @@ export async function GET(req: NextRequest) {
   const warehouses = await prisma.warehouse.findMany({
     where: { is_active: true },
     include: {
-      zones: {
-        include: { _count: { select: { bins: true } } },
-      },
+      _count: { select: { bins: true } },
     },
     orderBy: { name: "asc" },
   });

@@ -1,0 +1,168 @@
+/**
+ * Order workflow — สร้าง → Confirm → Pick → Pack → Ship
+ *
+ * Lifecycle:
+ *   PENDING → CONFIRMED → PICKING → PACKING → SHIPPED → DELIVERED
+ *
+ * จุดสำคัญ:
+ * - PICK เป็นจุดที่ stock ถูกหักออกจริง (writeMovement ISSUE)
+ * - SHIP สร้าง Shipment record + เปลี่ยน status
+ */
+import { prisma } from "@/lib/prisma";
+import { OrderChannel } from "@prisma/client";
+import { writeMovement } from "./stock.service";
+import { nextOrderNumber, nextShipmentNumber } from "./numbering.service";
+import { createNotification } from "./notification.service";
+
+export interface CreateOrderInput {
+  channel:      OrderChannel;
+  customerId?:  string | null;
+  notes?:       string | null;
+  totalAmount?: number | null;
+  handledBy:    string;
+}
+
+export interface AddLineInput {
+  orderId:    string;
+  productId:  string;
+  qty:        number;
+  unitPrice:  number;
+  notes?:     string | null;
+}
+
+export interface PickInput {
+  orderId:     string;
+  performedBy: string;
+  picks: Array<{
+    lineId: string;
+    binId:  string;
+    lotId:  string;
+    qty:    number;
+  }>;
+}
+
+export interface ShipInput {
+  orderId:        string;
+  carrierName?:   string | null;
+  trackingNumber?: string | null;
+}
+
+export async function createOrder(input: CreateOrderInput) {
+  const order_number = await nextOrderNumber();
+  const order = await prisma.order.create({
+    data: {
+      order_number,
+      channel:      input.channel,
+      customer_id:  input.customerId,
+      notes:        input.notes,
+      total_amount: input.totalAmount,
+      handled_by:   input.handledBy,
+    },
+  });
+  await createNotification({
+    type:  "ORDER_PENDING",
+    title: `คำสั่งซื้อใหม่: ${order_number}`,
+    body:  `ช่องทาง ${input.channel} — รอยืนยัน`,
+    link:  `/orders/${order.id}`,
+  });
+  return order;
+}
+
+export async function addLine(input: AddLineInput) {
+  return prisma.orderLine.create({
+    data: {
+      order_id:   input.orderId,
+      product_id: input.productId,
+      qty:        input.qty,
+      unit_price: input.unitPrice,
+      notes:      input.notes,
+    },
+  });
+}
+
+export async function removeLine(lineId: string) {
+  return prisma.orderLine.delete({ where: { id: lineId } });
+}
+
+export async function confirmOrder(orderId: string) {
+  const order = await prisma.order.findUnique({
+    where:   { id: orderId },
+    include: { lines: true },
+  });
+  if (!order) throw new Error("ไม่พบคำสั่งซื้อ");
+  if (order.status !== "PENDING") throw new Error("คำสั่งซื้อยืนยันแล้ว");
+  if (order.lines.length === 0) throw new Error("ต้องมีรายการสินค้าอย่างน้อย 1 รายการ");
+
+  return prisma.order.update({
+    where: { id: orderId },
+    data:  { status: "CONFIRMED" },
+  });
+}
+
+/**
+ * เบิกสินค้า → หัก stock จริง (ISSUE movement) ทุก line
+ * - ทุก line ต้องระบุ bin + lot + qty
+ * - ใช้ transaction เดี่ยวต่อ line (writeMovement มี $transaction ในตัว)
+ */
+export async function pickOrder(input: PickInput) {
+  const order = await prisma.order.findUnique({
+    where:   { id: input.orderId },
+    include: { lines: true },
+  });
+  if (!order) throw new Error("ไม่พบคำสั่งซื้อ");
+  if (order.status !== "CONFIRMED") throw new Error("ต้องยืนยันคำสั่งซื้อก่อน");
+
+  for (const pick of input.picks) {
+    const line = order.lines.find((l) => l.id === pick.lineId);
+    if (!line) throw new Error(`ไม่พบรายการ ${pick.lineId}`);
+
+    await writeMovement({
+      productId:     line.product_id,
+      lotId:         pick.lotId,
+      fromBinId:     pick.binId,
+      type:          "ISSUE",
+      qty:           pick.qty,
+      performedBy:   input.performedBy,
+      referenceType: "order",
+      referenceId:   input.orderId,
+    });
+  }
+
+  return prisma.order.update({
+    where: { id: input.orderId },
+    data:  { status: "PICKING" },
+  });
+}
+
+export async function packOrder(orderId: string) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) throw new Error("ไม่พบคำสั่งซื้อ");
+  if (order.status !== "PICKING") throw new Error("ต้องเบิกสินค้าก่อน");
+
+  return prisma.order.update({
+    where: { id: orderId },
+    data:  { status: "PACKING" },
+  });
+}
+
+export async function shipOrder(input: ShipInput) {
+  const order = await prisma.order.findUnique({ where: { id: input.orderId } });
+  if (!order) throw new Error("ไม่พบคำสั่งซื้อ");
+  if (order.status !== "PACKING") throw new Error("ต้องแพ็กสินค้าก่อน");
+
+  const shipment_number = await nextShipmentNumber();
+  await prisma.shipment.create({
+    data: {
+      shipment_number,
+      order_id:        input.orderId,
+      carrier_name:    input.carrierName,
+      tracking_number: input.trackingNumber,
+      shipped_at:      new Date(),
+    },
+  });
+
+  return prisma.order.update({
+    where: { id: input.orderId },
+    data:  { status: "SHIPPED", shipped_at: new Date() },
+  });
+}

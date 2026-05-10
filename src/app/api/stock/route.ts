@@ -16,13 +16,13 @@ export async function GET(req: NextRequest) {
     where: {
       ...(productId && { product_id: productId }),
       ...(lotId && { lot_id: lotId }),
-      ...(warehouseId && { bin: { zone: { warehouse_id: warehouseId } } }),
+      ...(warehouseId && { bin: { warehouse_id: warehouseId } }),
       ...(lowStock && { qty_on_hand: { lte: 0 } }),
     },
     include: {
       product: { select: { name: true, sku: true, unit: true, min_stock_qty: true } },
-      lot: { select: { lot_number: true, status: true } },
-      bin: { include: { zone: { include: { warehouse: { select: { name: true, type: true } } } } } },
+      lot:     { select: { lot_number: true, status: true } },
+      bin:     { include: { warehouse: { select: { name: true, type: true } } } },
     },
     orderBy: { updated_at: "desc" },
   });

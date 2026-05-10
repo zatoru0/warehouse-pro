@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { writeMovement } from "@/lib/stock-engine";
+import { writeMovement } from "@/services/stock.service";
+import { checkLowStock } from "@/services/notification.service";
 import { z } from "zod";
 
 const schema = z.object({
@@ -25,13 +26,17 @@ export async function POST(req: NextRequest) {
   await writeMovement({
     productId,
     lotId,
-    toBinId: direction === "IN" ? binId : undefined,
+    toBinId:   direction === "IN"  ? binId : undefined,
     fromBinId: direction === "OUT" ? binId : undefined,
-    type: direction === "IN" ? "ADJUST_IN" : "ADJUST_OUT",
+    type:      direction === "IN"  ? "ADJUST_IN" : "ADJUST_OUT",
     qty,
     performedBy: user!.id,
     notes,
   });
+
+  if (direction === "OUT") {
+    await checkLowStock(productId);
+  }
 
   return NextResponse.json({ ok: true });
 }

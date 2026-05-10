@@ -1,12 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PasswordInput } from "@/components/ui/password-input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,7 +23,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setLoading(true);
@@ -33,23 +41,17 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="mb-8 flex items-center justify-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-xl">
-            📦
-          </div>
-          <div>
-            <p className="font-bold leading-tight">WareHouse Pro</p>
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              Management System
-            </p>
-          </div>
+        <div className="mb-8 text-center">
+          <p className="text-3xl font-extrabold tracking-tight text-red-600">SUNFORD</p>
+          <p className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+            ระบบจัดการคลังสินค้า
+          </p>
         </div>
 
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-xl">Welcome back</CardTitle>
-            <CardDescription>Sign in to your account to continue</CardDescription>
+            <CardTitle className="text-xl">ยินดีต้อนรับ</CardTitle>
+            <CardDescription>เข้าสู่ระบบเพื่อใช้งาน</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
@@ -59,7 +61,7 @@ export default function LoginPage() {
                 </div>
               )}
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">อีเมล</Label>
                 <Input
                   id="email"
                   type="email"
@@ -70,20 +72,37 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">รหัสผ่าน</Label>
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs text-muted-foreground hover:text-red-500"
+                  >
+                    ลืมรหัสผ่าน?
+                  </Link>
+                </div>
+                <PasswordInput
                   id="password"
-                  type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
               </div>
-              <Button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-black font-semibold" disabled={loading}>
-                {loading ? "Signing in…" : "Sign In"}
+              <Button
+                type="submit"
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold"
+                disabled={loading}
+              >
+                {loading ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}
               </Button>
             </form>
+            <p className="mt-4 text-center text-sm text-muted-foreground">
+              ยังไม่มีบัญชี?{" "}
+              <Link href="/register" className="text-red-500 hover:underline">
+                สมัครใช้งาน
+              </Link>
+            </p>
           </CardContent>
         </Card>
       </div>

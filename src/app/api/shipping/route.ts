@@ -1,28 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { nextShipmentNumber } from "@/lib/number-generator";
+import { nextShipmentNumber } from "@/services/numbering.service";
 import { z } from "zod";
 
 const shipmentSchema = z.object({
-  order_id: z.string().min(1),
-  carrier_id: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
+  order_id:        z.string().min(1),
+  carrier_name:    z.string().optional().nullable(),
+  tracking_number: z.string().optional().nullable(),
 });
 
 export async function GET(req: NextRequest) {
   const { error } = await requireAuth(req);
   if (error) return error;
 
-  const { searchParams } = new URL(req.url);
-  const status = searchParams.get("status");
-
   const shipments = await prisma.shipment.findMany({
-    where: { ...(status && { status: status as any }) },
     include: {
       order: { select: { order_number: true, channel: true } },
-      carrier: { select: { name: true } },
-      _count: { select: { boxes: true } },
     },
     orderBy: { created_at: "desc" },
     take: 50,

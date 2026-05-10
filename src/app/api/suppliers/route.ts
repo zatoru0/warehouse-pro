@@ -33,6 +33,14 @@ export async function POST(req: NextRequest) {
   const parsed = supplierSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 });
 
-  const supplier = await prisma.supplier.create({ data: parsed.data });
-  return NextResponse.json(supplier, { status: 201 });
+  try {
+    const supplier = await prisma.supplier.create({ data: parsed.data });
+    return NextResponse.json(supplier, { status: 201 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "database error";
+    if (msg.includes("Unique constraint") || msg.includes("unique constraint")) {
+      return NextResponse.json({ error: "รหัสผู้จัดหานี้มีอยู่แล้ว" }, { status: 409 });
+    }
+    return NextResponse.json({ error: "บันทึกไม่สำเร็จ กรุณาลองใหม่" }, { status: 500 });
+  }
 }

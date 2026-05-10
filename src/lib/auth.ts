@@ -23,8 +23,35 @@ export async function requireAuth(req: NextRequest) {
   if (!session) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }), user: null };
   }
-  const user = await prisma.user.findUnique({ where: { supabase_id: session.user.id } });
-  if (!user || !user.is_active) {
+
+  let user = await prisma.user.findUnique({ where: { supabase_id: session.user.id } });
+
+  if (!user) {
+    try {
+      // email already in DB (e.g. supabase_id changed) → re-link
+      const byEmail = await prisma.user.findUnique({ where: { email: session.user.email! } });
+      if (byEmail) {
+        user = await prisma.user.update({
+          where: { id: byEmail.id },
+          data:  { supabase_id: session.user.id },
+        });
+      } else {
+        const count = await prisma.user.count();
+        user = await prisma.user.create({
+          data: {
+            supabase_id: session.user.id,
+            email:       session.user.email!,
+            full_name:   (session.user.user_metadata?.full_name as string) || session.user.email!.split("@")[0],
+            role:        count === 0 ? "SUPERADMIN" : "READONLY",
+          },
+        });
+      }
+    } catch {
+      return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }), user: null };
+    }
+  }
+
+  if (!user.is_active) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }), user: null };
   }
   return { error: null, user };

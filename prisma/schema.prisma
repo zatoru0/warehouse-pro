@@ -3,9 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 // ─── ENUMS ───────────────────────────────────────────────────────────────────
@@ -26,15 +24,11 @@ enum ReceivingType {
   RETURN
 }
 
-enum OrderChannel {
-  SHOPEE
-  LAZADA
-  TIKTOK
-  LINE
-  FACEBOOK
-  WALK_IN
-  CLAIM
-  EXCHANGE
+enum WorkflowStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
 enum OrderStatus {
@@ -42,19 +36,10 @@ enum OrderStatus {
   CONFIRMED
   PICKING
   PACKING
-  READY_TO_SHIP
   SHIPPED
   DELIVERED
   CANCELLED
   RETURNED
-}
-
-enum WorkflowStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  FAILED
-  CANCELLED
 }
 
 enum StockMovementType {
@@ -63,43 +48,40 @@ enum StockMovementType {
   TRANSFER
   ADJUST_IN
   ADJUST_OUT
-  RETURN_IN
-  RETURN_OUT
-  ASSEMBLY_CONSUME
-  ASSEMBLY_PRODUCE
-  DISASSEMBLY_CONSUME
-  DISASSEMBLY_PRODUCE
-  QC_PASS
   QC_FAIL
-  SCRAP
+  REPAIR_OUT
+  REPAIR_IN
+  DISASSEMBLY_OUT
+  DISASSEMBLY_IN
+}
+
+enum RepairStatus {
+  WAIT_REPAIR
+  IN_REPAIR
+  WAIT_QC
+  COMPLETED
+  CANCELLED
 }
 
 enum QcResult {
+  PENDING
   PASS
   FAIL
-  CONDITIONAL_PASS
-  PENDING
 }
 
 enum UserRole {
   SUPERADMIN
   ADMIN
-  RECEIVING
-  PRODUCTION
-  QC
-  WAREHOUSE
-  SHIPPING
-  AFTER_SALES
+  STAFF
   READONLY
 }
 
-enum NotificationType {
-  LOW_STOCK
-  RECEIVING_ALERT
-  ORDER_READY
-  QC_REQUIRED
-  SHIPMENT_DELAY
-  SYSTEM
+enum Department {
+  INBOUND        // ฝ่ายรับเข้า
+  PRODUCTION     // ฝ่ายผลิต
+  ADMIN_DEPT     // ฝ่าย Admin (Order/PO/Shipping)
+  AFTER_SALES    // ฝ่ายบริการหลังการขาย
+  WAREHOUSE      // ฝ่ายคลังสินค้า / Product
 }
 
 enum LotStatus {
@@ -107,46 +89,110 @@ enum LotStatus {
   QUARANTINE
   CONSUMED
   EXPIRED
-  SCRAPPED
 }
 
 enum BinStatus {
   AVAILABLE
   OCCUPIED
   RESERVED
-  MAINTENANCE
   BLOCKED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  COMPLETED
+  CANCELLED
+}
+
+enum POTransitStatus {
+  NOT_SHIPPED
+  IN_TRANSIT
+  ARRIVED
+}
+
+enum OrderChannel {
+  WALK_IN
+  LINE
+  SHOPEE
+  LAZADA
+  TIKTOK
+  FACEBOOK
+  CLAIM
+  EXCHANGE
+  BORROW
+}
+
+enum ProductionPriority {
+  LOW
+  NORMAL
+  URGENT
+}
+
+enum ServiceTicketStatus {
+  OPEN
+  IN_REVIEW
+  CLOSED
+  CANCELLED
+}
+
+enum ServiceTicketResolution {
+  REPAIR
+  EXCHANGE
+  REFUND
+  RETURN_TO_CUSTOMER
+  REJECTED
+}
+
+enum CreditNoteStatus {
+  DRAFT
+  ISSUED
+  REFUNDED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  CANCELLED
 }
 
 // ─── USERS ───────────────────────────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(uuid())
-  supabase_id  String   @unique
-  email        String   @unique
+  id           String       @id @default(uuid())
+  supabase_id  String       @unique
+  email        String       @unique
   full_name    String
-  display_name String?
-  role         UserRole @default(READONLY)
-  department   String?
-  phone        String?
-  avatar_url   String?
-  is_active    Boolean  @default(true)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+  role         UserRole     @default(READONLY)
+  departments  Department[] @default([])
+  is_active    Boolean      @default(true)
+  created_at   DateTime     @default(now())
+  updated_at   DateTime     @updatedAt
 
-  receiving_jobs  ReceivingJob[]
-  qc_records      QcRecord[]
-  stock_movements StockMovement[]
-  orders_handled  Order[]
-  production_jobs ProductionJob[]
-  notifications   Notification[]
-  audit_logs      AuditLog[]
-  shipments       Shipment[]
+  receiving_jobs           ReceivingJob[]
+  stock_movements          StockMovement[]
+  orders_handled           Order[]
+  production_jobs          ProductionJob[]
+  purchase_orders_created  PurchaseOrder[] @relation("po_creator")
+  purchase_orders_approved PurchaseOrder[] @relation("po_approver")
+  notifications            Notification[]
+  repair_jobs_received     RepairJob[]     @relation("repair_receiver")
+  repair_jobs_assigned     RepairJob[]     @relation("repair_assignee")
+  disassembly_jobs         DisassemblyJob[]
+  qc_inspected             QcRecord[]      @relation("qc_inspector")
+  qc_certified             QcRecord[]      @relation("qc_certifier")
+  exchange_jobs            ExchangeJob[]
+  service_tickets          ServiceTicket[]
+  credit_notes             CreditNote[]
+  invoices                 Invoice[]
 
   @@map("users")
 }
 
-// ─── LOCATION HIERARCHY ──────────────────────────────────────────────────────
+// ─── LOCATION ────────────────────────────────────────────────────────────────
 
 model Warehouse {
   id         String        @id @default(cuid())
@@ -154,131 +200,112 @@ model Warehouse {
   name       String
   name_th    String?
   type       WarehouseType
-  address    String?
   is_active  Boolean       @default(true)
   created_at DateTime      @default(now())
-  updated_at DateTime      @updatedAt
 
-  zones Zone[]
+  bins             Bin[]
+  receiving_jobs   ReceivingJob[]
+  production_jobs  ProductionJob[]
+  default_products Product[]      @relation("product_default_wh")
 
   @@map("warehouses")
 }
 
-model Zone {
+model Bin {
   id           String    @id @default(cuid())
   warehouse_id String
   code         String
-  name         String
-  name_th      String?
-  capacity     Int?
+  zone_code    String?
+  status       BinStatus @default(AVAILABLE)
   is_active    Boolean   @default(true)
   created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
 
-  warehouse Warehouse @relation(fields: [warehouse_id], references: [id])
-  bins      Bin[]
+  warehouse        Warehouse   @relation(fields: [warehouse_id], references: [id])
+  stock_items      StockItem[]
+  default_products Product[]   @relation("product_default_bin")
 
   @@unique([warehouse_id, code])
-  @@map("zones")
-}
-
-model Bin {
-  id          String    @id @default(cuid())
-  zone_id     String
-  code        String
-  name        String?
-  status      BinStatus @default(AVAILABLE)
-  max_weight  Decimal?
-  max_volume  Decimal?
-  is_active   Boolean   @default(true)
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
-
-  zone        Zone        @relation(fields: [zone_id], references: [id])
-  stock_items StockItem[]
-
-  @@unique([zone_id, code])
   @@map("bins")
 }
 
-// ─── PRODUCT CATALOGUE ───────────────────────────────────────────────────────
+// ─── PRODUCTS ────────────────────────────────────────────────────────────────
 
 model Category {
-  id          String     @id @default(cuid())
-  parent_id   String?
-  code        String     @unique
-  name        String
-  name_th     String?
-  description String?
-  is_active   Boolean    @default(true)
-  created_at  DateTime   @default(now())
+  id         String    @id @default(cuid())
+  code       String    @unique
+  name       String
+  name_th    String?
+  is_active  Boolean   @default(true)
+  created_at DateTime  @default(now())
 
-  parent   Category?  @relation("CategoryTree", fields: [parent_id], references: [id])
-  children Category[] @relation("CategoryTree")
   products Product[]
 
   @@map("categories")
 }
 
 model Product {
-  id                String   @id @default(cuid())
-  category_id       String?
-  sku               String   @unique
-  barcode           String?  @unique
-  name              String
-  name_th           String?
-  description       String?
-  unit              String   @default("PCS")
-  unit_weight       Decimal?
-  unit_volume       Decimal?
-  cost_price        Decimal?
-  sale_price        Decimal?
-  allow_sale        Boolean  @default(true)
-  allow_purchase    Boolean  @default(true)
-  allow_repair      Boolean  @default(false)
-  allow_claim       Boolean  @default(false)
-  allow_return      Boolean  @default(false)
-  allow_assembly    Boolean  @default(false)
-  allow_disassembly Boolean  @default(false)
-  allow_qc          Boolean  @default(true)
-  allow_certify     Boolean  @default(false)
-  min_stock_qty     Int      @default(0)
-  reorder_qty       Int      @default(0)
-  image_url         String?
-  is_active         Boolean  @default(true)
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
+  id          String   @id @default(cuid())
+  category_id String?
+  sku         String   @unique
+  barcode     String?  @unique
+  name        String
+  name_th     String?
+  description String?
+  unit        String   @default("PCS")
+  cost_price  Decimal?
+  sale_price  Decimal?
 
-  category        Category?       @relation(fields: [category_id], references: [id])
-  lots            Lot[]
-  bom_parents     BomLine[]       @relation("BomParent")
-  bom_components  BomLine[]       @relation("BomComponent")
-  stock_items     StockItem[]
-  order_lines     OrderLine[]
-  receiving_lines ReceivingLine[]
-  stock_movements StockMovement[]
-  alert_rule      StockAlertRule?
+  // Behaviors (9 ตัว)
+  allow_sale        Boolean @default(true)
+  allow_purchase    Boolean @default(true)
+  allow_repair      Boolean @default(false)
+  allow_claim       Boolean @default(false)
+  allow_qc          Boolean @default(true)
+  allow_return      Boolean @default(false)
+  allow_assembly    Boolean @default(false)
+  allow_disassembly Boolean @default(false)
+  allow_certify     Boolean @default(false)
+
+  min_stock_qty Int      @default(0)
+  reorder_qty   Int      @default(0)
+  image_url     String?
+  is_active     Boolean  @default(true)
+
+  // กำหนดคลังเริ่มต้น (ตาม PDF: ขั้นตอนการตั้งค่า Product)
+  default_warehouse_id String?
+  default_bin_id       String?
+
+  // กำหนดการแสดงผล
+  display_order Int     @default(0)
+  show_in_pos   Boolean @default(true)
+
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  default_warehouse    Warehouse?         @relation("product_default_wh", fields: [default_warehouse_id], references: [id])
+  default_bin          Bin?               @relation("product_default_bin", fields: [default_bin_id],       references: [id])
+  category             Category?          @relation(fields: [category_id], references: [id])
+  lots                 Lot[]
+  stock_items          StockItem[]
+  receiving_lines      ReceivingLine[]
+  stock_movements      StockMovement[]
+  qc_records           QcRecord[]
+  production_jobs      ProductionJob[]
+  order_lines          OrderLine[]
+  purchase_order_lines PurchaseOrderLine[]
+  repair_jobs          RepairJob[]
+  disassembly_jobs     DisassemblyJob[]
+  disassembly_parts    DisassemblyPart[]
+  exchange_jobs_new    ExchangeJob[]     @relation("exchange_new_product")
+  exchange_jobs_old    ExchangeJob[]     @relation("exchange_old_product")
+  service_tickets      ServiceTicket[]
+  credit_note_lines    CreditNoteLine[]
+  invoice_lines        InvoiceLine[]
 
   @@map("products")
 }
 
-model BomLine {
-  id           String   @id @default(cuid())
-  parent_id    String
-  component_id String
-  qty_required Decimal
-  unit         String   @default("PCS")
-  notes        String?
-  created_at   DateTime @default(now())
-
-  parent    Product @relation("BomParent",    fields: [parent_id],    references: [id])
-  component Product @relation("BomComponent", fields: [component_id], references: [id])
-
-  @@unique([parent_id, component_id])
-  @@map("bom_lines")
-}
-
-// ─── LOT / BATCH ─────────────────────────────────────────────────────────────
+// ─── LOTS ────────────────────────────────────────────────────────────────────
 
 model Lot {
   id              String    @id @default(cuid())
@@ -288,15 +315,13 @@ model Lot {
   status          LotStatus @default(ACTIVE)
   manufactured_at DateTime?
   expires_at      DateTime?
-  supplier_ref    String?
-  notes           String?
   created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
 
   product         Product         @relation(fields: [product_id], references: [id])
   stock_items     StockItem[]
   receiving_lines ReceivingLine[]
   movements       StockMovement[]
+  production_jobs ProductionJob[]
 
   @@map("lots")
 }
@@ -321,31 +346,29 @@ model StockItem {
 }
 
 model StockMovement {
-  id             String            @id @default(cuid())
-  product_id     String
-  lot_id         String?
-  from_bin_id    String?
-  to_bin_id      String?
-  movement_type  StockMovementType
-  qty            Decimal
-  reference_type String?
-  reference_id   String?
-  notes          String?
-  performed_by   String
-  performed_at   DateTime          @default(now())
+  id              String            @id @default(cuid())
+  product_id      String
+  lot_id          String
+  movement_type   StockMovementType
+  qty             Decimal
+  from_bin_id     String?
+  to_bin_id       String?
+  performed_by    String
+  reference_type  String?
+  reference_id    String?
+  notes           String?
+  performed_at    DateTime          @default(now())
 
-  product Product @relation(fields: [product_id],  references: [id])
-  lot     Lot?    @relation(fields: [lot_id],       references: [id])
+  product Product @relation(fields: [product_id],   references: [id])
+  lot     Lot     @relation(fields: [lot_id],       references: [id])
   user    User    @relation(fields: [performed_by], references: [id])
 
   @@index([product_id])
-  @@index([lot_id])
-  @@index([reference_id])
   @@index([performed_at])
   @@map("stock_movements")
 }
 
-// ─── SUPPLIERS ───────────────────────────────────────────────────────────────
+// ─── PARTNERS ────────────────────────────────────────────────────────────────
 
 model Supplier {
   id           String   @id @default(cuid())
@@ -359,11 +382,33 @@ model Supplier {
   tax_id       String?
   is_active    Boolean  @default(true)
   created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
 
-  receiving_jobs ReceivingJob[]
+  receiving_jobs  ReceivingJob[]
+  purchase_orders PurchaseOrder[]
 
   @@map("suppliers")
+}
+
+model Customer {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  name       String
+  name_th    String?
+  phone      String?
+  email      String?
+  address    String?
+  line_id    String?
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+
+  orders          Order[]
+  repair_jobs     RepairJob[]
+  exchange_jobs   ExchangeJob[]
+  service_tickets ServiceTicket[]
+  credit_notes    CreditNote[]
+  invoices        Invoice[]
+
+  @@map("customers")
 }
 
 // ─── RECEIVING ───────────────────────────────────────────────────────────────
@@ -383,11 +428,11 @@ model ReceivingJob {
   updated_at     DateTime       @updatedAt
 
   supplier   Supplier?       @relation(fields: [supplier_id], references: [id])
+  warehouse  Warehouse       @relation(fields: [warehouse_id], references: [id])
   receiver   User            @relation(fields: [received_by], references: [id])
   lines      ReceivingLine[]
   qc_records QcRecord[]
 
-  @@index([receiving_type])
   @@index([status])
   @@map("receiving_jobs")
 }
@@ -404,8 +449,8 @@ model ReceivingLine {
   created_at       DateTime @default(now())
 
   receiving_job ReceivingJob @relation(fields: [receiving_job_id], references: [id])
-  product       Product      @relation(fields: [product_id],       references: [id])
-  lot           Lot?         @relation(fields: [lot_id],           references: [id])
+  product       Product      @relation(fields: [product_id], references: [id])
+  lot           Lot?         @relation(fields: [lot_id],     references: [id])
 
   @@map("receiving_lines")
 }
@@ -422,17 +467,23 @@ model QcRecord {
   qty_passed        Decimal   @default(0)
   qty_failed        Decimal   @default(0)
   result            QcResult  @default(PENDING)
-  checklist         Json?
   notes             String?
-  certificate_no    String?
   inspected_by      String
   inspected_at      DateTime?
   created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
 
-  receiving_job  ReceivingJob?  @relation(fields: [receiving_job_id],  references: [id])
+  repair_job_id  String?
+  is_certified   Boolean   @default(false)
+  certified_at   DateTime?
+  certified_by   String?
+  certify_notes  String?
+
+  receiving_job  ReceivingJob?  @relation(fields: [receiving_job_id], references: [id])
   production_job ProductionJob? @relation(fields: [production_job_id], references: [id])
-  inspector      User           @relation(fields: [inspected_by],       references: [id])
+  repair_job     RepairJob?     @relation(fields: [repair_job_id],     references: [id])
+  product        Product        @relation(fields: [product_id],        references: [id])
+  inspector      User           @relation("qc_inspector",  fields: [inspected_by], references: [id])
+  certifier      User?          @relation("qc_certifier",  fields: [certified_by], references: [id])
 
   @@map("qc_records")
 }
@@ -440,89 +491,58 @@ model QcRecord {
 // ─── PRODUCTION ──────────────────────────────────────────────────────────────
 
 model ProductionJob {
-  id           String         @id @default(cuid())
-  job_number   String         @unique
-  job_type     String
-  product_id   String
-  lot_id       String?
-  qty_planned  Decimal
-  qty_produced Decimal        @default(0)
-  warehouse_id String
-  status       WorkflowStatus @default(PENDING)
-  started_at   DateTime?
-  completed_at DateTime?
-  assigned_to  String?
-  notes        String?
-  created_at   DateTime       @default(now())
-  updated_at   DateTime       @updatedAt
+  id             String             @id @default(cuid())
+  job_number     String             @unique
+  job_type       String
+  product_id     String
+  lot_id         String?
+  qty_planned    Decimal
+  qty_produced   Decimal            @default(0)
+  warehouse_id   String
+  status         WorkflowStatus     @default(PENDING)
+  priority       ProductionPriority @default(NORMAL)
+  should_certify Boolean            @default(false)
+  started_at     DateTime?
+  completed_at   DateTime?
+  assigned_to    String?
+  notes          String?
+  created_at     DateTime           @default(now())
+  updated_at     DateTime           @updatedAt
 
-  assigned_user     User?                  @relation(fields: [assigned_to], references: [id])
-  qc_records        QcRecord[]
-  consumption_lines ProductionConsumption[]
+  product       Product   @relation(fields: [product_id],   references: [id])
+  lot           Lot?      @relation(fields: [lot_id],       references: [id])
+  warehouse     Warehouse @relation(fields: [warehouse_id], references: [id])
+  assigned_user User?     @relation(fields: [assigned_to],  references: [id])
+  qc_records    QcRecord[]
 
   @@index([status])
   @@map("production_jobs")
 }
 
-model ProductionConsumption {
-  id                String   @id @default(cuid())
-  production_job_id String
-  product_id        String
-  lot_id            String?
-  qty_planned       Decimal
-  qty_consumed      Decimal  @default(0)
-  created_at        DateTime @default(now())
-
-  production_job ProductionJob @relation(fields: [production_job_id], references: [id])
-
-  @@map("production_consumptions")
-}
-
-// ─── CUSTOMERS & ORDERS ──────────────────────────────────────────────────────
-
-model Customer {
-  id         String   @id @default(cuid())
-  code       String   @unique
-  name       String
-  name_th    String?
-  phone      String?
-  email      String?
-  address    String?
-  line_id    String?
-  is_active  Boolean  @default(true)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  orders Order[]
-
-  @@map("customers")
-}
+// ─── ORDERS ──────────────────────────────────────────────────────────────────
 
 model Order {
-  id               String       @id @default(cuid())
-  order_number     String       @unique
-  channel          OrderChannel
-  channel_ref      String?
-  customer_id      String?
-  status           OrderStatus  @default(PENDING)
-  warehouse_id     String?
-  shipping_address String?
-  notes            String?
-  total_amount     Decimal?
-  handled_by       String?
-  ordered_at       DateTime     @default(now())
-  shipped_at       DateTime?
-  created_at       DateTime     @default(now())
-  updated_at       DateTime     @updatedAt
+  id           String       @id @default(cuid())
+  order_number String       @unique
+  channel      OrderChannel @default(WALK_IN)
+  customer_id  String?
+  status       OrderStatus  @default(PENDING)
+  total_amount Decimal?
+  notes        String?
+  handled_by   String?
+  ordered_at   DateTime    @default(now())
+  shipped_at   DateTime?
+  created_at   DateTime    @default(now())
+  updated_at   DateTime    @updatedAt
 
-  customer Customer?   @relation(fields: [customer_id], references: [id])
-  handler  User?       @relation(fields: [handled_by],  references: [id])
-  lines    OrderLine[]
-  shipment Shipment?
+  customer        Customer?       @relation(fields: [customer_id], references: [id])
+  handler         User?           @relation(fields: [handled_by],  references: [id])
+  lines           OrderLine[]
+  shipments       Shipment[]
+  service_tickets ServiceTicket[]
+  credit_notes    CreditNote[]
 
-  @@index([channel])
   @@index([status])
-  @@index([ordered_at])
   @@map("orders")
 }
 
@@ -530,13 +550,9 @@ model OrderLine {
   id          String   @id @default(cuid())
   order_id    String
   product_id  String
-  lot_id      String?
-  qty_ordered Decimal
-  qty_picked  Decimal  @default(0)
-  qty_packed  Decimal  @default(0)
-  unit_price  Decimal?
+  qty         Decimal
+  unit_price  Decimal
   notes       String?
-  created_at  DateTime @default(now())
 
   order   Order   @relation(fields: [order_id],   references: [id])
   product Product @relation(fields: [product_id], references: [id])
@@ -544,108 +560,293 @@ model OrderLine {
   @@map("order_lines")
 }
 
-// ─── SHIPPING ─────────────────────────────────────────────────────────────────
-
-model Carrier {
-  id         String     @id @default(cuid())
-  code       String     @unique
-  name       String
-  name_th    String?
-  is_active  Boolean    @default(true)
-  created_at DateTime   @default(now())
-
-  shipments Shipment[]
-
-  @@map("carriers")
-}
-
 model Shipment {
-  id              String         @id @default(cuid())
-  shipment_number String         @unique
-  order_id        String         @unique
-  carrier_id      String?
+  id              String    @id @default(cuid())
+  shipment_number String    @unique
+  order_id        String
+  carrier_name    String?
   tracking_number String?
-  status          WorkflowStatus @default(PENDING)
-  packed_by       String?
   shipped_by      String?
-  packed_at       DateTime?
   shipped_at      DateTime?
   delivered_at    DateTime?
-  notes           String?
-  created_at      DateTime       @default(now())
-  updated_at      DateTime       @updatedAt
+  created_at      DateTime  @default(now())
 
-  order     Order        @relation(fields: [order_id],   references: [id])
-  carrier   Carrier?     @relation(fields: [carrier_id], references: [id])
-  processor User?        @relation(fields: [shipped_by], references: [id])
-  boxes     ShipmentBox[]
+  order Order @relation(fields: [order_id], references: [id])
 
   @@map("shipments")
-}
-
-model ShipmentBox {
-  id          String   @id @default(cuid())
-  shipment_id String
-  box_number  String
-  weight      Decimal?
-  barcode     String?
-  created_at  DateTime @default(now())
-
-  shipment Shipment @relation(fields: [shipment_id], references: [id])
-
-  @@map("shipment_boxes")
 }
 
 // ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
 
 model Notification {
-  id             String           @id @default(cuid())
-  user_id        String
-  type           NotificationType
-  title          String
-  message        String
-  reference_type String?
-  reference_id   String?
-  is_read        Boolean          @default(false)
-  created_at     DateTime         @default(now())
+  id                 String       @id @default(cuid())
+  user_id            String?
+  type               String
+  title              String
+  body               String?
+  link               String?
+  is_read            Boolean      @default(false)
+  target_roles       UserRole[]   @default([])
+  target_departments Department[] @default([])
+  created_at         DateTime     @default(now())
 
-  user User @relation(fields: [user_id], references: [id])
+  user User? @relation(fields: [user_id], references: [id])
 
   @@index([user_id, is_read])
   @@index([created_at])
   @@map("notifications")
 }
 
-model StockAlertRule {
-  id           String   @id @default(cuid())
-  product_id   String   @unique
-  min_qty      Int
-  notify_roles Json
-  is_active    Boolean  @default(true)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+// ─── PURCHASE ORDERS ─────────────────────────────────────────────────────────
 
-  product Product @relation(fields: [product_id], references: [id])
+model PurchaseOrder {
+  id              String              @id @default(cuid())
+  po_number       String              @unique
+  supplier_id     String
+  status          PurchaseOrderStatus @default(DRAFT)
+  expected_date   DateTime?
+  reference_doc   String?
+  notes           String?
+  total_amount    Decimal?
+  created_by      String
+  approved_by     String?
 
-  @@map("stock_alert_rules")
+  // Transit tracking (ตาม PDF: "แจ้งเตือน จะเดินทางมาถึงคลังเมื่อไหร่")
+  transit_status  POTransitStatus     @default(NOT_SHIPPED)
+  shipped_at      DateTime?
+  in_transit_at   DateTime?
+  arrived_at      DateTime?
+  carrier         String?
+  tracking_number String?
+
+  created_at      DateTime            @default(now())
+  updated_at      DateTime            @updatedAt
+
+  supplier Supplier          @relation(fields: [supplier_id], references: [id])
+  creator  User              @relation("po_creator",  fields: [created_by],  references: [id])
+  approver User?             @relation("po_approver", fields: [approved_by], references: [id])
+  lines    PurchaseOrderLine[]
+
+  @@index([status])
+  @@map("purchase_orders")
 }
 
-// ─── AUDIT ───────────────────────────────────────────────────────────────────
+model PurchaseOrderLine {
+  id                String  @id @default(cuid())
+  purchase_order_id String
+  product_id        String
+  qty_ordered       Decimal
+  unit_price        Decimal @default(0)
+  qty_received      Decimal @default(0)
+  notes             String?
 
-model AuditLog {
-  id           String   @id @default(cuid())
-  user_id      String?
-  action       String
-  entity_type  String
-  entity_id    String?
-  old_values   Json?
-  new_values   Json?
-  ip_address   String?
-  performed_at DateTime @default(now())
+  purchase_order PurchaseOrder @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade)
+  product        Product       @relation(fields: [product_id],        references: [id])
 
-  user User? @relation(fields: [user_id], references: [id])
+  @@map("purchase_order_lines")
+}
 
-  @@index([entity_type, entity_id])
-  @@index([performed_at])
-  @@map("audit_logs")
+// ─── REPAIR JOBS ─────────────────────────────────────────────────────────────
+
+model RepairJob {
+  id           String       @id @default(cuid())
+  job_number   String       @unique
+  product_id   String
+  lot_id       String?
+  customer_id  String?
+  status       RepairStatus @default(WAIT_REPAIR)
+  issue_desc   String?
+  repair_note  String?
+  received_by  String
+  assigned_to  String?
+  completed_at DateTime?
+  created_at   DateTime     @default(now())
+  updated_at   DateTime     @updatedAt
+
+  product    Product    @relation(fields: [product_id],  references: [id])
+  customer   Customer?  @relation(fields: [customer_id], references: [id])
+  receiver   User       @relation("repair_receiver", fields: [received_by], references: [id])
+  assignee   User?      @relation("repair_assignee", fields: [assigned_to], references: [id])
+  qc_records QcRecord[]
+
+  @@index([status])
+  @@map("repair_jobs")
+}
+
+// ─── DISASSEMBLY ─────────────────────────────────────────────────────────────
+
+model DisassemblyJob {
+  id           String         @id @default(cuid())
+  job_number   String         @unique
+  product_id   String
+  lot_id       String?
+  from_bin_id  String?
+  qty          Decimal
+  status       WorkflowStatus @default(PENDING)
+  notes        String?
+  performed_by String
+  completed_at DateTime?
+  created_at   DateTime       @default(now())
+  updated_at   DateTime       @updatedAt
+
+  product   Product          @relation(fields: [product_id],  references: [id])
+  performer User             @relation(fields: [performed_by], references: [id])
+  parts     DisassemblyPart[]
+
+  @@index([status])
+  @@map("disassembly_jobs")
+}
+
+model DisassemblyPart {
+  id                 String  @id @default(cuid())
+  disassembly_job_id String
+  product_id         String
+  qty                Decimal
+  to_bin_id          String?
+  lot_id             String?
+
+  job     DisassemblyJob @relation(fields: [disassembly_job_id], references: [id], onDelete: Cascade)
+  product Product        @relation(fields: [product_id],         references: [id])
+
+  @@map("disassembly_parts")
+}
+
+// ─── EXCHANGE JOBS ────────────────────────────────────────────────────────────
+
+model ExchangeJob {
+  id             String         @id @default(cuid())
+  job_number     String         @unique
+  customer_id    String?
+  new_product_id String
+  new_lot_id     String?
+  new_bin_id     String?
+  old_product_id String
+  old_lot_id     String?
+  status         WorkflowStatus @default(PENDING)
+  notes          String?
+  handled_by     String
+  completed_at   DateTime?
+  created_at     DateTime       @default(now())
+  updated_at     DateTime       @updatedAt
+
+  customer    Customer? @relation(fields: [customer_id],    references: [id])
+  new_product Product   @relation("exchange_new_product", fields: [new_product_id], references: [id])
+  old_product Product   @relation("exchange_old_product", fields: [old_product_id], references: [id])
+  handler     User      @relation(fields: [handled_by],     references: [id])
+
+  @@index([status])
+  @@map("exchange_jobs")
+}
+
+// ─── SERVICE TICKETS (ฝ่ายบริการหลังการขาย) ─────────────────────────────────
+
+model ServiceTicket {
+  id            String                   @id @default(cuid())
+  ticket_number String                   @unique
+  customer_id   String?
+  product_id    String?
+  lot_id        String?
+  order_id      String?
+  reported_at   DateTime                 @default(now())
+  issue_desc    String
+  inspection    String?
+  status        ServiceTicketStatus      @default(OPEN)
+  resolution    ServiceTicketResolution?
+  repair_job_id String?
+  exchange_id   String?
+  notes         String?
+  received_by   String
+  closed_at     DateTime?
+  created_at    DateTime                 @default(now())
+  updated_at    DateTime                 @updatedAt
+
+  customer  Customer?  @relation(fields: [customer_id], references: [id])
+  product   Product?   @relation(fields: [product_id],  references: [id])
+  order     Order?     @relation(fields: [order_id],    references: [id])
+  receiver  User       @relation(fields: [received_by], references: [id])
+
+  @@index([status])
+  @@map("service_tickets")
+}
+
+// ─── CREDIT NOTES (ใบลดหนี้ / โอนเงินคืนลูกค้า) ─────────────────────────────
+
+model CreditNote {
+  id           String           @id @default(cuid())
+  cn_number    String           @unique
+  customer_id  String?
+  order_id     String?
+  reason       String
+  total_amount Decimal
+  status       CreditNoteStatus @default(DRAFT)
+  notes        String?
+  issued_by    String
+  issued_at    DateTime?
+  refunded_at  DateTime?
+  created_at   DateTime         @default(now())
+  updated_at   DateTime         @updatedAt
+
+  customer Customer? @relation(fields: [customer_id], references: [id])
+  order    Order?    @relation(fields: [order_id],    references: [id])
+  issuer   User      @relation(fields: [issued_by],   references: [id])
+  lines    CreditNoteLine[]
+
+  @@index([status])
+  @@map("credit_notes")
+}
+
+model CreditNoteLine {
+  id             String  @id @default(cuid())
+  credit_note_id String
+  product_id     String?
+  description    String
+  qty            Decimal @default(1)
+  unit_price     Decimal
+  amount         Decimal
+
+  credit_note CreditNote @relation(fields: [credit_note_id], references: [id], onDelete: Cascade)
+  product     Product?   @relation(fields: [product_id],     references: [id])
+
+  @@map("credit_note_lines")
+}
+
+// ─── INVOICES (ใบแจ้งหนี้ค่าอะไหล่) ──────────────────────────────────────────
+
+model Invoice {
+  id             String        @id @default(cuid())
+  invoice_number String        @unique
+  customer_id    String?
+  service_ticket_id String?
+  reason         String
+  total_amount   Decimal
+  status         InvoiceStatus @default(DRAFT)
+  notes          String?
+  issued_by      String
+  issued_at      DateTime?
+  paid_at        DateTime?
+  due_date       DateTime?
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  customer Customer?      @relation(fields: [customer_id], references: [id])
+  issuer   User           @relation(fields: [issued_by],   references: [id])
+  lines    InvoiceLine[]
+
+  @@index([status])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  invoice_id  String
+  product_id  String?
+  description String
+  qty         Decimal @default(1)
+  unit_price  Decimal
+  amount      Decimal
+
+  invoice Invoice  @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [product_id], references: [id])
+
+  @@map("invoice_lines")
 }

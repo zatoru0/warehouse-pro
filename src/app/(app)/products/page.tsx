@@ -2,7 +2,6 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 
 async function getProducts() {
@@ -15,11 +14,11 @@ async function getProducts() {
 }
 
 const FLAG_LABELS: [string, string][] = [
-  ["allow_sale", "Sale"],
-  ["allow_repair", "Repair"],
-  ["allow_qc", "QC"],
-  ["allow_assembly", "Assembly"],
-  ["allow_claim", "Claim"],
+  ["allow_sale",     "ขาย"],
+  ["allow_purchase", "ซื้อ"],
+  ["allow_repair",   "ซ่อม"],
+  ["allow_claim",    "เคลม"],
+  ["allow_qc",       "QC"],
 ];
 
 export default async function ProductsPage() {
@@ -28,13 +27,14 @@ export default async function ProductsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Product Catalogue</h2>
-        <Button asChild size="sm" className="bg-amber-500 hover:bg-amber-600 text-black font-semibold">
-          <Link href="/products/new">
-            <Plus className="mr-1.5 h-4 w-4" />
-            Add Product
-          </Link>
-        </Button>
+        <h2 className="text-lg font-semibold">รายการสินค้า</h2>
+        <Link
+          href="/products/new"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-2.5 py-1.5 text-[0.8rem] font-semibold text-white hover:bg-red-700"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          เพิ่มสินค้า
+        </Link>
       </div>
 
       <Card>
@@ -43,12 +43,12 @@ export default async function ProductsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">SKU</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Unit</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Cost</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Behaviours</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อสินค้า</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">รหัสสินค้า</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">หมวดหมู่</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">หน่วย</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">ต้นทุน</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">คุณสมบัติ</th>
                 </tr>
               </thead>
               <tbody>
@@ -58,7 +58,7 @@ export default async function ProductsPage() {
                     className="border-b border-border last:border-0 hover:bg-muted/20"
                   >
                     <td className="px-4 py-3">
-                      <Link href={`/products/${p.id}`} className="font-medium hover:text-amber-400">
+                      <Link href={`/products/${p.id}`} className="font-medium hover:text-red-500">
                         {p.name}
                       </Link>
                       {p.name_th && (
@@ -73,7 +73,7 @@ export default async function ProductsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {FLAG_LABELS.filter(([key]) => (p as any)[key]).map(([, label]) => (
+                        {FLAG_LABELS.filter(([key]) => (p as Record<string, unknown>)[key]).map(([, label]) => (
                           <Badge key={label} variant="secondary" className="text-[10px]">
                             {label}
                           </Badge>
@@ -85,7 +85,7 @@ export default async function ProductsPage() {
                 {products.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                      No products yet. Click &quot;Add Product&quot; to create one.
+                      ยังไม่มีสินค้า คลิก &quot;เพิ่มสินค้า&quot; เพื่อสร้าง
                     </td>
                   </tr>
                 )}
