@@ -11,7 +11,9 @@
       "Bash(mkdir -p \"c:/claude work space/warehouse-pro/src/app/api/exchange/[jobId]\")",
       "Bash(mkdir -p \"c:/claude work space/warehouse-pro/src/app/api/qc/[id]/certify\")",
       "Bash(npx next *)",
-      "Bash(node -e \"const {PrismaClient}=require\\('@prisma/client'\\); const p=new PrismaClient\\(\\); p.user.findFirst\\({select:{id:true,departments:true}}\\).then\\(u=>{console.log\\('OK',u\\);process.exit\\(0\\)}\\).catch\\(e=>{console.error\\('ERR',e.message\\);process.exit\\(1\\)}\\)\")"
+      "Bash(node -e \"const {PrismaClient}=require\\('@prisma/client'\\); const p=new PrismaClient\\(\\); p.user.findFirst\\({select:{id:true,departments:true}}\\).then\\(u=>{console.log\\('OK',u\\);process.exit\\(0\\)}\\).catch\\(e=>{console.error\\('ERR',e.message\\);process.exit\\(1\\)}\\)\")",
+      "Bash(npm run *)",
+      "PowerShell($env:PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\"; npx prisma db push --force-reset --accept-data-loss)"
     ]
   }
 }
