@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, requireDepartment } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { invoiceUpdateSchema } from "@/lib/validators/invoice.schema";
 
@@ -27,7 +27,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ invoiceId: string }> }
 ) {
-  const { error } = await requireAuth(req);
+  const { error } = await requireDepartment(req, ["AFTER_SALES", "ADMIN_DEPT"]);
   if (error) return error;
   const { invoiceId } = await params;
 

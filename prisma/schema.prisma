@@ -79,6 +79,7 @@ enum UserRole {
 enum Department {
   INBOUND        // ฝ่ายรับเข้า
   PRODUCTION     // ฝ่ายผลิต
+  QC             // ฝ่าย QC (ตรวจสอบคุณภาพ / ตีตรา)
   ADMIN_DEPT     // ฝ่าย Admin (Order/PO/Shipping)
   AFTER_SALES    // ฝ่ายบริการหลังการขาย
   WAREHOUSE      // ฝ่ายคลังสินค้า / Product

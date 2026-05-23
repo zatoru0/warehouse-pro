@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, requireDepartment } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { serviceTicketUpdateSchema } from "@/lib/validators/service-ticket.schema";
 
@@ -28,7 +28,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ ticketId: string }> }
 ) {
-  const { error } = await requireAuth(req);
+  const { error } = await requireDepartment(req, ["AFTER_SALES"]);
   if (error) return error;
   const { ticketId } = await params;
 

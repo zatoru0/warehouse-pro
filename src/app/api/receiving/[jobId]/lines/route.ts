@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { receivingLineSchema } from "@/lib/validators/receiving.schema";
 import { addLine, updateLine } from "@/services/receiving.service";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
-  const { error } = await requireAuth(req);
+  const { error } = await requireDepartment(req, ["INBOUND"]);
   if (error) return error;
   const { jobId } = await params;
 
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
 }
 
 export async function PATCH(req: NextRequest) {
-  const { error } = await requireAuth(req);
+  const { error } = await requireDepartment(req, ["INBOUND"]);
   if (error) return error;
 
   const body = await req.json();

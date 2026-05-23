@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { completeJob } from "@/services/production.service";
 import { z } from "zod";
 
@@ -10,7 +10,7 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
-  const { error, user } = await requireAuth(req);
+  const { error, user } = await requireDepartment(req, ["PRODUCTION"]);
   if (error) return error;
   const { jobId } = await params;
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, requireDepartment } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateRepairStatus, completeRepairWithQc } from "@/services/repair.service";
 import { z } from "zod";
@@ -40,7 +40,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
-  const { error, user } = await requireAuth(req);
+  const { error, user } = await requireDepartment(req, ["PRODUCTION"]);
   if (error) return error;
   const { jobId } = await params;
 

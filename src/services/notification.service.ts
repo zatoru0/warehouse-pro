@@ -10,11 +10,16 @@ export type NotificationType =
   | "ORDER_PENDING"
   | "SERVICE_TICKET";
 
+// อ้างอิง Update Weekly.pdf (ผังงานระบบคลัง) — การแจ้งเตือน 4 แบบ
+//  1. สินค้าถึงเกณฑ์สั่งซื้อ      → Admin (ADMIN_DEPT)
+//  2. รับเข้าสินค้า                → ฝ่ายรับเข้า (INBOUND)
+//  3. PO จะมาถึงเมื่อไร           → ระบบจัดซื้อ = Admin (+ รับเข้าเตรียมรับ)
+//  4. รายการของแต่ละแผนก        → ฝ่ายที่เกี่ยวข้องโดยตรง
 const DEFAULT_TARGET_DEPARTMENTS: Record<NotificationType, Department[]> = {
-  LOW_STOCK:          ["WAREHOUSE"],
+  LOW_STOCK:          ["ADMIN_DEPT"],
   RECEIVING_DONE:     ["INBOUND", "WAREHOUSE"],
   PO_DUE:             ["ADMIN_DEPT", "INBOUND"],
-  QC_PENDING:         ["INBOUND", "PRODUCTION"],
+  QC_PENDING:         ["QC", "INBOUND", "PRODUCTION"],
   PRODUCTION_PENDING: ["PRODUCTION"],
   ORDER_PENDING:      ["ADMIN_DEPT"],
   SERVICE_TICKET:     ["AFTER_SALES"],

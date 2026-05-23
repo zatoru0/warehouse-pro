@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { startJob } from "@/services/production.service";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
-  const { error } = await requireAuth(req);
+  const { error } = await requireDepartment(req, ["PRODUCTION"]);
   if (error) return error;
   const { jobId } = await params;
 

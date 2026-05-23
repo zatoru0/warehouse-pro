@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
-import { UserRole } from "@prisma/client";
+import { UserRole, Department } from "@prisma/client";
 
 export async function getSession() {
   const supabase = await createClient();
@@ -63,5 +63,37 @@ export async function requireRole(req: NextRequest, roles: UserRole[]) {
   if (!roles.includes(user!.role)) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }), user: null };
   }
+  return { error: null, user };
+}
+
+/**
+ * Gate a write action by department (Update Weekly RBAC).
+ *  - SUPERADMIN / ADMIN  → bypass (เห็น/ทำทุกแผนก)
+ *  - READONLY            → ปฏิเสธทุก write
+ *  - STAFF               → ต้องสังกัดอย่างน้อย 1 แผนกใน `departments`
+ */
+export async function requireDepartment(req: NextRequest, departments: Department[]) {
+  const { error, user } = await requireAuth(req);
+  if (error) return { error, user: null };
+
+  if (user!.role === "SUPERADMIN" || user!.role === "ADMIN") {
+    return { error: null, user };
+  }
+
+  if (user!.role === "READONLY") {
+    return {
+      error: NextResponse.json({ error: "บัญชีอ่านอย่างเดียว ไม่มีสิทธิ์ดำเนินการนี้" }, { status: 403 }),
+      user: null,
+    };
+  }
+
+  const allowed = departments.some((d) => user!.departments.includes(d));
+  if (!allowed) {
+    return {
+      error: NextResponse.json({ error: "คุณไม่มีสิทธิ์ในแผนกที่จำเป็นสำหรับการดำเนินการนี้" }, { status: 403 }),
+      user: null,
+    };
+  }
+
   return { error: null, user };
 }

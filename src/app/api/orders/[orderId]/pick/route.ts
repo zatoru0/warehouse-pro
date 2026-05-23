@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { pickOrder } from "@/services/order.service";
 import { z } from "zod";
 
@@ -13,7 +13,7 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ orderId: string }> }) {
-  const { error, user } = await requireAuth(req);
+  const { error, user } = await requireDepartment(req, ["ADMIN_DEPT"]);
   if (error) return error;
   const { orderId } = await params;
 

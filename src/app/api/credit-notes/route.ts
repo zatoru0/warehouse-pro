@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, requireDepartment } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { creditNoteSchema } from "@/lib/validators/credit-note.schema";
 import { nextCreditNoteNumber } from "@/services/numbering.service";
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { error, user } = await requireAuth(req);
+  const { error, user } = await requireDepartment(req, ["AFTER_SALES", "ADMIN_DEPT"]);
   if (error) return error;
 
   const body = await req.json();
