@@ -13,7 +13,15 @@
       "Bash(npx next *)",
       "Bash(node -e \"const {PrismaClient}=require\\('@prisma/client'\\); const p=new PrismaClient\\(\\); p.user.findFirst\\({select:{id:true,departments:true}}\\).then\\(u=>{console.log\\('OK',u\\);process.exit\\(0\\)}\\).catch\\(e=>{console.error\\('ERR',e.message\\);process.exit\\(1\\)}\\)\")",
       "Bash(npm run *)",
-      "PowerShell($env:PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\"; npx prisma db push --force-reset --accept-data-loss)"
+      "PowerShell($env:PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\"; npx prisma db push --force-reset --accept-data-loss)",
+      "PowerShell(npm run db:push)",
+      "PowerShell(npx prisma generate)",
+      "PowerShell(npx tsc --noEmit 2>&1)",
+      "Bash(npx tsx *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git reset *)"
     ]
   }
 }
