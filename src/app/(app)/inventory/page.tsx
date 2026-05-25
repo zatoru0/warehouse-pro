@@ -133,8 +133,8 @@ function AdjustModal({
             <Input
               id="adj-qty"
               type="number"
-              min="0.01"
-              step="any"
+              min="1"
+              step="1"
               placeholder="0"
               value={qty}
               onChange={(e) => setQty(e.target.value)}
@@ -238,7 +238,9 @@ export default function InventoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((item) => {
+                {filtered
+                  .filter((item) => Number(item.qty_on_hand) >= 0) // <--- จุดที่ 1
+                  .map((item) =>{
                   const available = Number(item.qty_on_hand) - Number(item.qty_reserved);
                   const isLow = Number(item.qty_on_hand) <= item.product.min_stock_qty && item.product.min_stock_qty > 0;
                   const zone = item.bin.zone_code ? `${item.bin.zone_code} / ` : "";
@@ -279,7 +281,7 @@ export default function InventoryPage() {
                     </tr>
                   );
                 })}
-                {filtered.length === 0 && (
+                {filtered.filter((item) => Number(item.qty_on_hand) >= 0).length === 0 && (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                       {search ? "ไม่พบสินค้าที่ค้นหา" : "ยังไม่มีสินค้าในคลัง เริ่มต้นด้วยการรับสินค้า"}

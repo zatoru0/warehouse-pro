@@ -266,7 +266,7 @@ export default function ReceivingDetailPage({
                 </select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="qty" className="text-xs">จำนวนที่คาดหวัง</Label>
+                <Label htmlFor="qty" className="text-xs">จำนวน</Label>
                 <Input
                   id="qty"
                   type="number"
@@ -315,7 +315,7 @@ export default function ReceivingDetailPage({
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">สินค้า</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">คาดหวัง</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">จำนวน</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">รับจริง</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Bin</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Lot</th>
