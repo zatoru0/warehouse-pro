@@ -1,5 +1,41 @@
 import { prisma } from "@/lib/prisma";
-import { Department, UserRole } from "@prisma/client";
+import { Department, Prisma, UserRole } from "@prisma/client";
+
+/**
+ * เงื่อนไข where สำหรับ "notification ที่ user คนนี้เห็นได้":
+ *  - ของตัวเอง (user_id ตรง) หรือ
+ *  - broadcast (user_id null) ที่ target_roles/target_departments ตรงกับ role/แผนกของ user
+ */
+export function visibleToUser(user: {
+  id: string;
+  role: UserRole;
+  departments: Department[];
+}): Prisma.NotificationWhereInput {
+  return {
+    OR: [
+      { user_id: user.id },
+      {
+        user_id: null,
+        AND: [
+          {
+            OR: [
+              { target_roles: { isEmpty: true } },
+              { target_roles: { has: user.role } },
+            ],
+          },
+          {
+            OR: [
+              { target_departments: { isEmpty: true } },
+              ...(user.departments.length > 0
+                ? [{ target_departments: { hasSome: user.departments } }]
+                : []),
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
 
 export type NotificationType =
   | "LOW_STOCK"
