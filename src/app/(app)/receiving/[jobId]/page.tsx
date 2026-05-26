@@ -266,7 +266,7 @@ export default function ReceivingDetailPage({
                 </select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="qty" className="text-xs">จำนวนที่คาดหวัง</Label>
+                <Label htmlFor="qty" className="text-xs">จำนวน</Label>
                 <Input
                   id="qty"
                   type="number"
