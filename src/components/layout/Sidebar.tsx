@@ -47,7 +47,7 @@ const nav: { label: string; items: Item[] }[] = [
     label: "ฝ่ายรับเข้า",
     items: [
       { href: "/receiving", icon: ArrowDownToLine, label: "รับสินค้า",     dept: ["INBOUND"] },
-      { href: "/qc",        icon: FlaskConical,    label: "ตรวจสอบคุณภาพ", dept: ["INBOUND", "PRODUCTION"] },
+      { href: "/qc",        icon: FlaskConical,    label: "ตรวจสอบคุณภาพ", dept: ["QC", "INBOUND", "PRODUCTION"] },
     ],
   },
   {
@@ -56,7 +56,7 @@ const nav: { label: string; items: Item[] }[] = [
       { href: "/production",  icon: Factory,  label: "การผลิต",       dept: ["PRODUCTION"] },
       { href: "/repair",      icon: Wrench,   label: "งานซ่อม",       dept: ["PRODUCTION", "AFTER_SALES"] },
       { href: "/disassembly", icon: Scissors, label: "แยกชิ้นส่วน",   dept: ["PRODUCTION"] },
-      { href: "/certify",     icon: Stamp,    label: "ตีตรา (Certify)", dept: ["PRODUCTION"] },
+      { href: "/certify",     icon: Stamp,    label: "ตีตรา (Certify)", dept: ["QC", "PRODUCTION"] },
     ],
   },
   {

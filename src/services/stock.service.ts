@@ -5,6 +5,17 @@
 import { StockMovementType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+// movement ที่เป็นการเบิก/ขาย/บริโภคของจาก lot — ต้องมาจาก lot ที่ ACTIVE เท่านั้น
+// (TRANSFER / ADJUST_OUT ปล่อยได้ — ย้ายของกักกัน หรือ ตัดทิ้ง)
+const CONSUMING_TYPES: StockMovementType[] = ["ISSUE", "REPAIR_OUT", "DISASSEMBLY_OUT"];
+
+const LOT_STATUS_LABELS: Record<string, string> = {
+  ACTIVE:     "ใช้งาน",
+  QUARANTINE: "กักกัน",
+  EXPIRED:    "หมดอายุ",
+  CONSUMED:   "ใช้หมดแล้ว",
+};
+
 export interface MovementInput {
   productId:      string;
   lotId:          string;
@@ -30,6 +41,18 @@ export async function writeMovement(input: MovementInput) {
     fromBinId, toBinId,
     performedBy, referenceType, referenceId, notes,
   } = input;
+
+  // กันการเบิก/ขายของจาก lot ที่ไม่ ACTIVE (กักกัน/หมดอายุ/ใช้หมด)
+  if (CONSUMING_TYPES.includes(type)) {
+    const lot = await prisma.lot.findUnique({
+      where:  { id: lotId },
+      select: { status: true, lot_number: true },
+    });
+    if (lot && lot.status !== "ACTIVE") {
+      const label = LOT_STATUS_LABELS[lot.status] ?? lot.status;
+      throw new Error(`Lot ${lot.lot_number} อยู่สถานะ "${label}" — เบิก/ขายไม่ได้`);
+    }
+  }
 
   return prisma.$transaction(async (tx) => {
     const movement = await tx.stockMovement.create({

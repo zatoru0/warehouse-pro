@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { packOrder } from "@/services/order.service";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ orderId: string }> }) {
-  const { error } = await requireAuth(req);
+  const { error } = await requireDepartment(req, ["ADMIN_DEPT"]);
   if (error) return error;
   const { orderId } = await params;
 

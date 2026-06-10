@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, requireDepartment } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
-  const { error } = await requireAuth(req);
+  const { error } = await requireDepartment(req, ["INBOUND"]);
   if (error) return error;
   const { jobId } = await params;
   const body = await req.json();

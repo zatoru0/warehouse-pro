@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { writeMovement } from "@/services/stock.service";
 import { checkLowStock } from "@/services/notification.service";
 import { z } from "zod";
@@ -14,7 +14,7 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const { error, user } = await requireAuth(req);
+  const { error, user } = await requireDepartment(req, ["WAREHOUSE"]);
   if (error) return error;
 
   const body = await req.json();
