@@ -654,6 +654,7 @@ model RepairJob {
   job_number   String       @unique
   product_id   String
   lot_id       String?
+  notes        String?
   customer_id  String?
   status       RepairStatus @default(WAIT_REPAIR)
   issue_desc   String?
