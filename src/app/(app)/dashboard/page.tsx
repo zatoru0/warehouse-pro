@@ -30,7 +30,11 @@ async function getDashboardStats() {
     prisma.stockMovement.findMany({
       take: 8,
       orderBy: { performed_at: "desc" },
-      include: {
+      select: {
+        id: true,
+        movement_type: true,
+        reference_type: true, // ตัวแปรสำคัญที่จะบอกว่าเป็นงาน RETURN
+        performed_at: true,
         product: { select: { name: true, sku: true } },
         user:    { select: { full_name: true } },
       },
@@ -184,7 +188,7 @@ export default async function DashboardPage() {
               {stats.recentMovements.map((m) => (
                 <div key={m.id} className="flex items-center gap-3 py-3 text-sm">
                   <span className="w-28 shrink-0 rounded-full bg-muted px-2 py-0.5 text-center text-xs text-muted-foreground">
-                    {MOVEMENT_LABELS[m.movement_type] ?? m.movement_type}
+                    {m.reference_type === "RETURN" ? "รับสินค้าคืน" : (MOVEMENT_LABELS[m.movement_type] ?? m.movement_type)}
                   </span>
                   <span className="flex-1 font-medium">{m.product.name}</span>
                   <span className="text-muted-foreground text-xs">{m.user.full_name}</span>

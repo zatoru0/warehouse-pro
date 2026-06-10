@@ -15,7 +15,7 @@ const TYPE_OPTIONS = [
   { value: "CLAIM",     label: "เคลม" },
   { value: "REPAIR",    label: "ซ่อม" },
   { value: "PARTS",     label: "อะไหล่ / ชิ้นส่วน" },
-  { value: "RETURN",    label: "คืนสินค้า" },
+  //{ value: "RETURN",    label: "คืนสินค้า" },
 ];
 
 type Warehouse = { id: string; name: string; code: string; type: string };
