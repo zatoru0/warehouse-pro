@@ -9,7 +9,7 @@ import {
   ArrowDownToLine, FlaskConical, Factory,
   Building2, LogOut, Layers, ShoppingCart, Truck,
   Wrench, Scissors, ArrowLeftRight, Stamp, RefreshCcw,
-  Headphones, FileMinus, FileText, Lock,Undo2,
+  Headphones, FileMinus, FileText, Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -73,7 +73,6 @@ const nav: { label: string; items: Item[] }[] = [
       { href: "/exchange",        icon: RefreshCcw,    label: "แลกเปลี่ยนเครื่อง", dept: ["AFTER_SALES"] },
       { href: "/credit-notes",    icon: FileMinus,     label: "ใบลดหนี้",        dept: ["AFTER_SALES", "ADMIN_DEPT"] },
       { href: "/invoices",        icon: FileText,      label: "ใบแจ้งหนี้",      dept: ["AFTER_SALES", "ADMIN_DEPT"] },
-      { href: "/claims",          icon: RefreshCcw,    label: "เคลมสินค้า", dept: ["QC", "AFTER_SALES", "ADMIN_DEPT"] },
     ],
   },
   {
@@ -82,12 +81,8 @@ const nav: { label: string; items: Item[] }[] = [
       { href: "/warehouses",         icon: Building2,      label: "คลังสินค้า",     dept: ["WAREHOUSE"] },
       { href: "/inventory/transfer", icon: ArrowLeftRight, label: "โอนย้ายสินค้า", dept: ["WAREHOUSE", "INBOUND"] },
       { href: "/lots",               icon: Layers,         label: "ล็อต / บาร์โค้ด", dept: ["WAREHOUSE", "INBOUND"] },
-      { href: "/returns",   icon: Undo2,           label: "รับคืนสินค้า",  dept: ["QC", "ADMIN_DEPT", "INBOUND"] },
     ],
   },
-
- 
-
   {
     label: "อื่นๆ",
     items: [
