@@ -10,6 +10,7 @@ import {
   Building2, LogOut, Layers, ShoppingCart, Truck,
   Wrench, Scissors, ArrowLeftRight, Stamp, RefreshCcw,
   Headphones, FileMinus, FileText, Lock,
+  AlertTriangle, PackageX, Bell, MapPin, SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -62,8 +63,12 @@ const nav: { label: string; items: Item[] }[] = [
   {
     label: "ฝ่าย Admin",
     items: [
-      { href: "/shipping",        icon: Truck,        label: "จัดส่ง",         dept: ["ADMIN_DEPT"] },
-      { href: "/purchase-orders", icon: ShoppingCart, label: "ใบสั่งซื้อ (PO)", dept: ["ADMIN_DEPT"] },
+      { href: "/shipping",                icon: Truck,        label: "จัดส่ง",            dept: ["ADMIN_DEPT"] },
+      { href: "/purchase-orders",         icon: ShoppingCart, label: "ใบสั่งซื้อ (PO)",    dept: ["ADMIN_DEPT"] },
+      { href: "/purchase-orders/transit", icon: Truck,        label: "ติดตามขนส่ง PO",   dept: ["ADMIN_DEPT"] },
+      { href: "/inventory/reorder",       icon: AlertTriangle,label: "สินค้าใกล้หมด",     dept: ["ADMIN_DEPT", "WAREHOUSE"] },
+      { href: "/claims",                  icon: AlertTriangle,label: "รับเคลม",          dept: ["ADMIN_DEPT", "AFTER_SALES"] },
+      { href: "/returns",                 icon: PackageX,     label: "รับสินค้าส่งคืน",   dept: ["ADMIN_DEPT", "AFTER_SALES"] },
     ],
   },
   {
@@ -78,16 +83,19 @@ const nav: { label: string; items: Item[] }[] = [
   {
     label: "คลังสินค้า",
     items: [
-      { href: "/warehouses",         icon: Building2,      label: "คลังสินค้า",     dept: ["WAREHOUSE"] },
-      { href: "/inventory/transfer", icon: ArrowLeftRight, label: "โอนย้ายสินค้า", dept: ["WAREHOUSE", "INBOUND"] },
-      { href: "/lots",               icon: Layers,         label: "ล็อต / บาร์โค้ด", dept: ["WAREHOUSE", "INBOUND"] },
+      { href: "/warehouses",         icon: Building2,         label: "คลังสินค้า",       dept: ["WAREHOUSE"] },
+      { href: "/inventory/transfer", icon: ArrowLeftRight,    label: "โอนย้ายสินค้า",     dept: ["WAREHOUSE", "INBOUND"] },
+      { href: "/inventory/adjust",   icon: SlidersHorizontal, label: "ปรับสต็อก",        dept: ["WAREHOUSE"] },
+      { href: "/lots",               icon: Layers,            label: "ล็อต / บาร์โค้ด",    dept: ["WAREHOUSE", "INBOUND"] },
     ],
   },
   {
     label: "อื่นๆ",
     items: [
-      { href: "/reports",  icon: BarChart3, label: "วิเคราะห์",  dept: [] },
-      { href: "/settings", icon: Settings,  label: "ตั้งค่า",     dept: [] },
+      { href: "/notifications",  icon: Bell,      label: "การแจ้งเตือน", dept: [] },
+      { href: "/reports",        icon: BarChart3, label: "วิเคราะห์",   dept: [] },
+      { href: "/settings/zones", icon: MapPin,    label: "โซน / Bin",   dept: ["WAREHOUSE"] },
+      { href: "/settings",       icon: Settings,  label: "ตั้งค่า",      dept: [] },
     ],
   },
 ];

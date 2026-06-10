@@ -35,6 +35,10 @@ const PAGE_TITLES: Record<string, string> = {
   "/invoices":        "ใบแจ้งหนี้",
   "/reports":         "รายงานและวิเคราะห์",
   "/settings":        "ตั้งค่า",
+  "/claims":          "รับเคลม",
+  "/returns":         "รับสินค้าส่งคืน",
+  "/notifications":   "การแจ้งเตือน",
+  "/customers":       "ข้อมูลลูกค้า",
 };
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {

@@ -10,12 +10,11 @@ import { Button } from "@/components/ui/button";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+// Note: CLAIM/RETURN intake moved to /claims and /returns (Admin flow)
 const TYPE_OPTIONS = [
   { value: "NEW_GOODS", label: "สินค้าใหม่" },
-  { value: "CLAIM",     label: "เคลม" },
-  { value: "REPAIR",    label: "ซ่อม" },
+  { value: "REPAIR",    label: "ซ่อม (กลับจากเวนเดอร์)" },
   { value: "PARTS",     label: "อะไหล่ / ชิ้นส่วน" },
-  { value: "RETURN",    label: "คืนสินค้า" },
 ];
 
 type Warehouse = { id: string; name: string; code: string; type: string };

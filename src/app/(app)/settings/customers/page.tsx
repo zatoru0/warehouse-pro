@@ -267,7 +267,9 @@ export default function CustomersPage() {
                     <tr key={c.id} className="border-b border-border last:border-0 hover:bg-muted/20">
                       <td className="px-4 py-3 font-mono text-xs font-semibold">{c.code}</td>
                       <td className="px-4 py-3">
-                        <p className="font-medium">{c.name}</p>
+                        <Link href={`/customers/${c.id}`} className="font-medium hover:text-red-600 hover:underline">
+                          {c.name}
+                        </Link>
                         {c.name_th && <p className="text-xs text-muted-foreground">{c.name_th}</p>}
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">{c.phone ?? "—"}</td>
