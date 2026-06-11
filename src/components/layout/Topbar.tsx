@@ -40,7 +40,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/settings":        "ตั้งค่า",
   "/claims":          "รับเคลม",
   "/returns":         "รับสินค้าส่งคืน",
-  "/notifications":   "การแจ้งเตือน",
   "/customers":       "ข้อมูลลูกค้า",
 };
 
