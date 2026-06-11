@@ -14,6 +14,7 @@ export const receivingLineSchema = z.object({
   lot_id: z.string().optional().nullable(),
   expected_qty: z.number().positive(),
   received_qty: z.number().min(0).optional(),
+  unit_cost: z.number().min(0).optional(),
   bin_id: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
