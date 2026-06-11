@@ -79,6 +79,7 @@ enum UserRole {
 enum Department {
   INBOUND        // ฝ่ายรับเข้า
   PRODUCTION     // ฝ่ายผลิต
+  QC             // ฝ่าย QC (ตรวจสอบคุณภาพ / ตีตรา)
   ADMIN_DEPT     // ฝ่าย Admin (Order/PO/Shipping)
   AFTER_SALES    // ฝ่ายบริการหลังการขาย
   WAREHOUSE      // ฝ่ายคลังสินค้า / Product
@@ -653,6 +654,7 @@ model RepairJob {
   job_number   String       @unique
   product_id   String
   lot_id       String?
+  notes        String?
   customer_id  String?
   status       RepairStatus @default(WAIT_REPAIR)
   issue_desc   String?

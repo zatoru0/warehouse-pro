@@ -1,13 +1,12 @@
 "use client";
 
-import useSWR from "swr";
-import Link from "next/link";
 import { useState } from "react";
+import useSWR from "swr";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
-  Bell, Package, ClipboardCheck, Factory, ShoppingCart, ArrowDownToLine,
-  Headphones, Check,
+  Bell, Package, ClipboardCheck, Factory, ShoppingCart,
+  ArrowDownToLine, Headphones, CheckCheck, Check, Trash2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { th } from "date-fns/locale";
@@ -24,16 +23,6 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   SERVICE_TICKET:     <Headphones className="h-4 w-4 text-pink-500" />,
 };
 
-const TYPE_LABELS: Record<string, string> = {
-  LOW_STOCK:          "สต็อกต่ำ",
-  RECEIVING_DONE:     "รับเข้าเสร็จ",
-  QC_PENDING:         "รอ QC",
-  PRODUCTION_PENDING: "รอผลิต",
-  PO_DUE:             "PO ใกล้กำหนด",
-  ORDER_PENDING:      "ออเดอร์ใหม่",
-  SERVICE_TICKET:     "เคสบริการ",
-};
-
 type Notification = {
   id: string;
   type: string;
@@ -44,140 +33,170 @@ type Notification = {
   created_at: string;
 };
 
-const TABS = [
-  { value: "all",    label: "ทั้งหมด" },
-  { value: "unread", label: "ยังไม่อ่าน" },
-] as const;
+function dateGroup(iso: string): "วันนี้" | "เมื่อวาน" | "ก่อนหน้า" {
+  const d = new Date(iso);
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startYesterday = new Date(startToday);
+  startYesterday.setDate(startYesterday.getDate() - 1);
+  if (d >= startToday) return "วันนี้";
+  if (d >= startYesterday) return "เมื่อวาน";
+  return "ก่อนหน้า";
+}
+
+const GROUP_ORDER: Array<"วันนี้" | "เมื่อวาน" | "ก่อนหน้า"> = ["วันนี้", "เมื่อวาน", "ก่อนหน้า"];
 
 export default function NotificationsPage() {
+  const router = useRouter();
+  const { data, isLoading, mutate } = useSWR("/api/notifications?limit=100", fetcher, {
+    refreshInterval: 30000,
+  });
+
   const [tab, setTab] = useState<"all" | "unread">("all");
-  const [typeFilter, setTypeFilter] = useState<string>("");
 
-  const url = tab === "unread" ? "/api/notifications?unread=true" : "/api/notifications";
-  const { data, mutate, isLoading } = useSWR(url, fetcher, { refreshInterval: 30000 });
-
-  const notifications: Notification[] = Array.isArray(data?.notifications) ? data.notifications : [];
+  const all: Notification[] = Array.isArray(data?.notifications) ? data.notifications : [];
   const unreadCount: number = data?.unreadCount ?? 0;
+  const list = tab === "unread" ? all.filter((n) => !n.is_read) : all;
 
-  const filtered = typeFilter
-    ? notifications.filter((n) => n.type === typeFilter)
-    : notifications;
-
-  // group by date (today / yesterday / earlier)
-  const groups = groupByDate(filtered);
+  // group ตามวัน (เรียงตามลำดับ)
+  const groups = GROUP_ORDER
+    .map((g) => ({ label: g, items: list.filter((n) => dateGroup(n.created_at) === g) }))
+    .filter((g) => g.items.length > 0);
 
   async function markAllRead() {
     await fetch("/api/notifications", { method: "PATCH" });
-    await mutate();
+    mutate();
   }
 
-  const uniqueTypes = Array.from(new Set(notifications.map((n) => n.type)));
+  async function markRead(id: string) {
+    await fetch(`/api/notifications/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_read: true }),
+    });
+    mutate();
+  }
+
+  async function remove(id: string) {
+    await fetch(`/api/notifications/${id}`, { method: "DELETE" });
+    mutate();
+  }
+
+  async function open(n: Notification) {
+    if (!n.is_read) await markRead(n.id);
+    if (n.link) router.push(n.link);
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">การแจ้งเตือนทั้งหมด</h2>
-          <p className="text-xs text-muted-foreground">
-            ยังไม่อ่าน {unreadCount} รายการ
+          <h2 className="text-lg font-semibold">การแจ้งเตือน</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {unreadCount > 0 ? `${unreadCount} รายการที่ยังไม่อ่าน` : "อ่านครบแล้ว"}
           </p>
         </div>
         {unreadCount > 0 && (
-          <Button onClick={markAllRead} variant="outline" className="h-9">
-            <Check className="h-4 w-4 mr-1.5" />
+          <button
+            onClick={markAllRead}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-red-600/10 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-600/20"
+          >
+            <CheckCheck className="h-3.5 w-3.5" />
             อ่านทั้งหมด
-          </Button>
+          </button>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex rounded-lg border border-border bg-card p-0.5">
-          {TABS.map((t) => (
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border">
+        {([["all", "ทั้งหมด"], ["unread", `ยังไม่อ่าน${unreadCount > 0 ? ` (${unreadCount})` : ""}`]] as const).map(
+          ([key, label]) => (
             <button
-              key={t.value}
-              onClick={() => setTab(t.value)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                tab === t.value
-                  ? "bg-red-600 text-white"
-                  : "text-muted-foreground hover:text-foreground"
+              key={key}
+              onClick={() => setTab(key)}
+              className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                tab === key
+                  ? "border-red-600 text-red-600"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              {t.label}
-              {t.value === "unread" && unreadCount > 0 && (
-                <span className="ml-1.5">({unreadCount})</span>
-              )}
+              {label}
             </button>
-          ))}
-        </div>
-
-        {uniqueTypes.length > 1 && (
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="rounded-lg border border-input bg-background px-3 py-1.5 text-xs"
-          >
-            <option value="">ทุกประเภท</option>
-            {uniqueTypes.map((t) => (
-              <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>
-            ))}
-          </select>
+          )
         )}
       </div>
 
-      {isLoading ? (
-        <div className="py-16 text-center text-sm text-muted-foreground">กำลังโหลด…</div>
-      ) : filtered.length === 0 ? (
+      {isLoading && !data ? (
         <Card>
-          <CardContent className="py-16 text-center text-muted-foreground">
-            <Bell className="mx-auto mb-3 h-10 w-10 opacity-30" />
-            <p>ไม่มีการแจ้งเตือน</p>
+          <CardContent className="space-y-3 p-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex gap-3">
+                <div className="h-4 w-4 shrink-0 animate-pulse rounded bg-muted" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+                  <div className="h-2.5 w-1/3 animate-pulse rounded bg-muted" />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : list.length === 0 ? (
+        <Card>
+          <CardContent className="py-16 text-center">
+            <Bell className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
+            <p className="text-sm text-muted-foreground">
+              {tab === "unread" ? "ไม่มีรายการที่ยังไม่อ่าน" : "ยังไม่มีการแจ้งเตือน"}
+            </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
-          {groups.map((g) => (
-            <div key={g.label} className="space-y-2">
-              <h3 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {g.label}
-              </h3>
+          {groups.map((group) => (
+            <div key={group.label}>
+              <p className="mb-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {group.label}
+              </p>
               <Card>
                 <CardContent className="p-0">
-                  {g.items.map((n, idx) => {
-                    const inner = (
-                      <div className="flex gap-3 px-4 py-3 hover:bg-muted/30 transition-colors">
-                        <div className="mt-0.5 shrink-0">
-                          {TYPE_ICONS[n.type] ?? <Bell className="h-4 w-4 text-muted-foreground" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium ${!n.is_read ? "text-foreground" : "text-muted-foreground"}`}>
-                            {n.title}
-                          </p>
-                          {n.body && (
-                            <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>
-                          )}
-                          <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground/70">
-                            <span className="rounded-full bg-muted px-1.5 py-0.5 font-medium">
-                              {TYPE_LABELS[n.type] ?? n.type}
-                            </span>
-                            <span>{formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: th })}</span>
-                          </div>
-                        </div>
+                  {group.items.map((n) => (
+                    <div
+                      key={n.id}
+                      className={`group flex items-start gap-3 border-b border-border px-4 py-3 last:border-0 ${
+                        !n.is_read ? "bg-red-500/5" : ""
+                      }`}
+                    >
+                      <div className="mt-0.5 shrink-0">
+                        {TYPE_ICONS[n.type] ?? <Bell className="h-4 w-4 text-muted-foreground" />}
+                      </div>
+                      <button onClick={() => open(n)} className="min-w-0 flex-1 text-left">
+                        <p className={`text-sm font-medium leading-snug ${!n.is_read ? "text-foreground" : "text-muted-foreground"}`}>
+                          {n.title}
+                        </p>
+                        {n.body && <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{n.body}</p>}
+                        <p className="mt-1 text-[11px] text-muted-foreground/70">
+                          {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: th })}
+                        </p>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-1">
                         {!n.is_read && (
-                          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-red-600" />
+                          <button
+                            onClick={() => markRead(n.id)}
+                            title="ทำเครื่องหมายว่าอ่านแล้ว"
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-green-600"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
                         )}
+                        <button
+                          onClick={() => remove(n.id)}
+                          title="ลบ"
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
-                    );
-                    return (
-                      <div
-                        key={n.id}
-                        className={`${idx !== g.items.length - 1 ? "border-b border-border" : ""} ${
-                          !n.is_read ? "bg-red-500/5" : ""
-                        }`}
-                      >
-                        {n.link ? <Link href={n.link}>{inner}</Link> : inner}
-                      </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             </div>
@@ -186,23 +205,4 @@ export default function NotificationsPage() {
       )}
     </div>
   );
-}
-
-function groupByDate(items: Notification[]) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
-
-  const buckets: Record<string, Notification[]> = { today: [], yesterday: [], earlier: [] };
-  for (const n of items) {
-    const d = new Date(n.created_at); d.setHours(0, 0, 0, 0);
-    if (d.getTime() === today.getTime())          buckets.today.push(n);
-    else if (d.getTime() === yesterday.getTime()) buckets.yesterday.push(n);
-    else                                          buckets.earlier.push(n);
-  }
-  const groups = [
-    { label: "วันนี้",     items: buckets.today },
-    { label: "เมื่อวาน",   items: buckets.yesterday },
-    { label: "ก่อนหน้านี้", items: buckets.earlier },
-  ];
-  return groups.filter((g) => g.items.length > 0);
 }

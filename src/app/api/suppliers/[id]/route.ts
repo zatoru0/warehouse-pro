@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireDepartment } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -18,7 +18,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAuth(req);
+  const { error } = await requireDepartment(req, ["WAREHOUSE", "ADMIN_DEPT"]);
   if (error) return error;
 
   const { id } = await params;
@@ -34,7 +34,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAuth(req);
+  const { error } = await requireDepartment(req, ["WAREHOUSE", "ADMIN_DEPT"]);
   if (error) return error;
 
   const { id } = await params;

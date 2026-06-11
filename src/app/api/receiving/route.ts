@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, requireDepartment } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { receivingJobSchema } from "@/lib/validators/receiving.schema";
 import { createJob } from "@/services/receiving.service";
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { error, user } = await requireAuth(req);
+  const { error, user } = await requireDepartment(req, ["INBOUND"]);
   if (error) return error;
 
   const body = await req.json();

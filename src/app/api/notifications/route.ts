@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createNotification } from "@/services/notification.service";
+import { createNotification, visibleToUser } from "@/services/notification.service";
 
 async function maybeCreatePoDueNotifications() {
   const today = new Date();
@@ -42,88 +42,36 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const unreadOnly = searchParams.get("unread") === "true";
+  const limit = Math.min(Math.max(Number(searchParams.get("limit")) || 30, 1), 100);
 
-  const userDepartments = user!.departments;
-
-  const broadcastFilter = {
-    user_id: null,
-    AND: [
-      {
-        OR: [
-          { target_roles: { isEmpty: true } },
-          { target_roles: { has: user!.role } },
-        ],
-      },
-      {
-        OR: [
-          { target_departments: { isEmpty: true } },
-          ...(userDepartments.length > 0
-            ? [{ target_departments: { hasSome: userDepartments } }]
-            : []),
-        ],
-      },
-    ],
-  };
-
-  const visibleFilter = {
-    OR: [
-      { user_id: user!.id },
-      broadcastFilter,
-    ],
-  };
+  const visibleFilter = visibleToUser(user!);
 
   const notifications = await prisma.notification.findMany({
     where: {
-      ...visibleFilter,
-      ...(unreadOnly && { is_read: false }),
+      AND: [
+        visibleFilter,
+        ...(unreadOnly ? [{ is_read: false }] : []),
+      ],
     },
     orderBy: { created_at: "desc" },
-    take: 30,
+    take: limit,
   });
 
   const unreadCount = await prisma.notification.count({
-    where: {
-      ...visibleFilter,
-      is_read: false,
-    },
+    where: { AND: [visibleFilter, { is_read: false }] },
   });
 
   return NextResponse.json({ notifications, unreadCount });
 }
 
+// mark ทั้งหมดที่ user เห็นได้ ว่าอ่านแล้ว
 export async function PATCH(req: NextRequest) {
   const { error, user } = await requireAuth(req);
   if (error) return error;
 
-  const userDepartments = user!.departments;
-
   await prisma.notification.updateMany({
-    where: {
-      OR: [
-        { user_id: user!.id },
-        {
-          user_id: null,
-          AND: [
-            {
-              OR: [
-                { target_roles: { isEmpty: true } },
-                { target_roles: { has: user!.role } },
-              ],
-            },
-            {
-              OR: [
-                { target_departments: { isEmpty: true } },
-                ...(userDepartments.length > 0
-                  ? [{ target_departments: { hasSome: userDepartments } }]
-                  : []),
-              ],
-            },
-          ],
-        },
-      ],
-      is_read: false,
-    },
-    data: { is_read: true },
+    where: { AND: [visibleToUser(user!), { is_read: false }] },
+    data:  { is_read: true },
   });
 
   return NextResponse.json({ ok: true });

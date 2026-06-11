@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, requireDepartment } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validators/product.schema";
 
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prod
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ productId: string }> }) {
-  const { error } = await requireAuth(req);
+  const { error } = await requireDepartment(req, ["WAREHOUSE"]);
   if (error) return error;
   const { productId } = await params;
 
@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ pr
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ productId: string }> }) {
-  const { error } = await requireAuth(req);
+  const { error } = await requireDepartment(req, ["WAREHOUSE"]);
   if (error) return error;
   const { productId } = await params;
 

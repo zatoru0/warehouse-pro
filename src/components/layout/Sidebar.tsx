@@ -9,8 +9,7 @@ import {
   ArrowDownToLine, FlaskConical, Factory,
   Building2, LogOut, Layers, ShoppingCart, Truck,
   Wrench, Scissors, ArrowLeftRight, Stamp, RefreshCcw,
-  Headphones, FileMinus, FileText, Lock,
-  AlertTriangle, PackageX, Bell, MapPin, SlidersHorizontal,
+  Headphones, FileMinus, FileText, Lock,Undo2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -48,7 +47,7 @@ const nav: { label: string; items: Item[] }[] = [
     label: "ฝ่ายรับเข้า",
     items: [
       { href: "/receiving", icon: ArrowDownToLine, label: "รับสินค้า",     dept: ["INBOUND"] },
-      { href: "/qc",        icon: FlaskConical,    label: "ตรวจสอบคุณภาพ", dept: ["INBOUND", "PRODUCTION"] },
+      { href: "/qc",        icon: FlaskConical,    label: "ตรวจสอบคุณภาพ", dept: ["QC", "INBOUND", "PRODUCTION"] },
     ],
   },
   {
@@ -57,18 +56,14 @@ const nav: { label: string; items: Item[] }[] = [
       { href: "/production",  icon: Factory,  label: "การผลิต",       dept: ["PRODUCTION"] },
       { href: "/repair",      icon: Wrench,   label: "งานซ่อม",       dept: ["PRODUCTION", "AFTER_SALES"] },
       { href: "/disassembly", icon: Scissors, label: "แยกชิ้นส่วน",   dept: ["PRODUCTION"] },
-      { href: "/certify",     icon: Stamp,    label: "ตีตรา (Certify)", dept: ["PRODUCTION"] },
+      { href: "/certify",     icon: Stamp,    label: "ตีตรา (Certify)", dept: ["QC", "PRODUCTION"] },
     ],
   },
   {
     label: "ฝ่าย Admin",
     items: [
-      { href: "/shipping",                icon: Truck,        label: "จัดส่ง",            dept: ["ADMIN_DEPT"] },
-      { href: "/purchase-orders",         icon: ShoppingCart, label: "ใบสั่งซื้อ (PO)",    dept: ["ADMIN_DEPT"] },
-      { href: "/purchase-orders/transit", icon: Truck,        label: "ติดตามขนส่ง PO",   dept: ["ADMIN_DEPT"] },
-      { href: "/inventory/reorder",       icon: AlertTriangle,label: "สินค้าใกล้หมด",     dept: ["ADMIN_DEPT", "WAREHOUSE"] },
-      { href: "/claims",                  icon: AlertTriangle,label: "รับเคลม",          dept: ["ADMIN_DEPT", "AFTER_SALES"] },
-      { href: "/returns",                 icon: PackageX,     label: "รับสินค้าส่งคืน",   dept: ["ADMIN_DEPT", "AFTER_SALES"] },
+      { href: "/shipping",        icon: Truck,        label: "จัดส่ง",         dept: ["ADMIN_DEPT"] },
+      { href: "/purchase-orders", icon: ShoppingCart, label: "ใบสั่งซื้อ (PO)", dept: ["ADMIN_DEPT"] },
     ],
   },
   {
@@ -78,24 +73,26 @@ const nav: { label: string; items: Item[] }[] = [
       { href: "/exchange",        icon: RefreshCcw,    label: "แลกเปลี่ยนเครื่อง", dept: ["AFTER_SALES"] },
       { href: "/credit-notes",    icon: FileMinus,     label: "ใบลดหนี้",        dept: ["AFTER_SALES", "ADMIN_DEPT"] },
       { href: "/invoices",        icon: FileText,      label: "ใบแจ้งหนี้",      dept: ["AFTER_SALES", "ADMIN_DEPT"] },
+      { href: "/claims",          icon: RefreshCcw,    label: "เคลมสินค้า", dept: ["QC", "AFTER_SALES", "ADMIN_DEPT"] },
     ],
   },
   {
     label: "คลังสินค้า",
     items: [
-      { href: "/warehouses",         icon: Building2,         label: "คลังสินค้า",       dept: ["WAREHOUSE"] },
-      { href: "/inventory/transfer", icon: ArrowLeftRight,    label: "โอนย้ายสินค้า",     dept: ["WAREHOUSE", "INBOUND"] },
-      { href: "/inventory/adjust",   icon: SlidersHorizontal, label: "ปรับสต็อก",        dept: ["WAREHOUSE"] },
-      { href: "/lots",               icon: Layers,            label: "ล็อต / บาร์โค้ด",    dept: ["WAREHOUSE", "INBOUND"] },
+      { href: "/warehouses",         icon: Building2,      label: "คลังสินค้า",     dept: ["WAREHOUSE"] },
+      { href: "/inventory/transfer", icon: ArrowLeftRight, label: "โอนย้ายสินค้า", dept: ["WAREHOUSE", "INBOUND"] },
+      { href: "/lots",               icon: Layers,         label: "ล็อต / บาร์โค้ด", dept: ["WAREHOUSE", "INBOUND"] },
+      { href: "/returns",   icon: Undo2,           label: "รับคืนสินค้า",  dept: ["QC", "ADMIN_DEPT", "INBOUND"] },
     ],
   },
+
+ 
+
   {
     label: "อื่นๆ",
     items: [
-      { href: "/notifications",  icon: Bell,      label: "การแจ้งเตือน", dept: [] },
-      { href: "/reports",        icon: BarChart3, label: "วิเคราะห์",   dept: [] },
-      { href: "/settings/zones", icon: MapPin,    label: "โซน / Bin",   dept: ["WAREHOUSE"] },
-      { href: "/settings",       icon: Settings,  label: "ตั้งค่า",      dept: [] },
+      { href: "/reports",  icon: BarChart3, label: "วิเคราะห์",  dept: [] },
+      { href: "/settings", icon: Settings,  label: "ตั้งค่า",     dept: [] },
     ],
   },
 ];

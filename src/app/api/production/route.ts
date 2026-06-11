@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, requireDepartment } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { productionJobSchema } from "@/lib/validators/production.schema";
 import { createJob } from "@/services/production.service";
@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { error } = await requireAuth(req);
+  // ออกใบสั่งผลิต: Admin/Sales เป็นผู้สั่ง, ฝ่ายผลิตสร้างเองได้
+  const { error } = await requireDepartment(req, ["ADMIN_DEPT", "PRODUCTION"]);
   if (error) return error;
 
   const body = await req.json();
