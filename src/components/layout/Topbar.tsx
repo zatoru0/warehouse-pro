@@ -38,6 +38,9 @@ const PAGE_TITLES: Record<string, string> = {
   "/notifications":   "การแจ้งเตือน",
   "/reports":         "รายงานและวิเคราะห์",
   "/settings":        "ตั้งค่า",
+  "/claims":          "รับเคลม",
+  "/returns":         "รับสินค้าส่งคืน",
+  "/customers":       "ข้อมูลลูกค้า",
 };
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {

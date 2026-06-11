@@ -5,16 +5,9 @@ import useSWR from "swr";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import { format } from "date-fns";
-import { TICKET_STATUS_LABELS, TICKET_STATUS_COLORS } from "@/lib/ticket-labels";
+import { INTAKE_STATUS_LABELS, TICKET_STATUS_COLORS } from "@/lib/ticket-labels";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
-const RESOLUTION_LABELS: Record<string, string> = {
-  REPAIR:             "ส่งซ่อม",
-  EXCHANGE:           "เปลี่ยนเครื่อง",
-  REFUND:             "คืนเงิน",
-  RETURN_TO_CUSTOMER: "ส่งคืนลูกค้า",
-  REJECTED:           "ปฏิเสธเคส",
-};
 
 type Ticket = {
   id: string;
@@ -22,16 +15,32 @@ type Ticket = {
   status: string;
   resolution: string | null;
   issue_desc: string;
+  notes: string | null;
   created_at: string;
   closed_at: string | null;
   customer: { name: string; phone: string | null } | null;
   product: { name: string; sku: string } | null;
-  receiver: { full_name: string };
 };
 
-export default function ServiceTicketsPage() {
+type Props = {
+  pageTitle: string;
+  pageSubtitle: string;
+  newHref: string;
+  newButtonLabel: string;
+  issueColumnLabel: string;
+  resolutionLabels: Record<string, string>;
+  /** filter predicate against notes prefix */
+  filter: (t: Ticket) => boolean;
+  emptyIcon: React.ReactNode;
+  emptyText: string;
+};
+
+export function IntakeTicketList({
+  pageTitle, pageSubtitle, newHref, newButtonLabel, issueColumnLabel,
+  resolutionLabels, filter, emptyIcon, emptyText,
+}: Props) {
   const { data, isLoading } = useSWR<Ticket[]>("/api/service-tickets", fetcher, { refreshInterval: 30000 });
-  const tickets = Array.isArray(data) ? data : [];
+  const tickets = (Array.isArray(data) ? data : []).filter(filter);
   const open    = tickets.filter((t) => t.status === "OPEN" || t.status === "IN_REVIEW");
   const closed  = tickets.filter((t) => t.status === "CLOSED" || t.status === "CANCELLED");
 
@@ -39,20 +48,29 @@ export default function ServiceTicketsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">บริการหลังการขาย</h2>
-          <p className="text-xs text-muted-foreground">เปิดเคส: {open.length} รายการ</p>
+          <h2 className="text-lg font-semibold">{pageTitle}</h2>
+          <p className="text-xs text-muted-foreground">
+            {pageSubtitle} — รอ Admin QC: {open.length} รายการ
+          </p>
         </div>
         <Link
-          href="/service-tickets/new"
+          href={newHref}
           className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
         >
-          <Plus className="h-4 w-4" />
-          เปิดเคสใหม่
+          <Plus className="h-4 w-4" /> {newButtonLabel}
         </Link>
       </div>
 
       {isLoading ? (
         <div className="py-16 text-center text-sm text-muted-foreground">กำลังโหลด…</div>
+      ) : tickets.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <div className="mx-auto mb-3 opacity-30">{emptyIcon}</div>
+            <p>{emptyText}</p>
+            <p className="text-xs mt-1">กด "{newButtonLabel}" เพื่อเปิดเคส</p>
+          </CardContent>
+        </Card>
       ) : (
         <>
           {open.length > 0 && (
@@ -64,8 +82,8 @@ export default function ServiceTicketsPage() {
                       <th className="px-4 py-3 text-left font-medium text-muted-foreground">เลขเคส</th>
                       <th className="px-4 py-3 text-left font-medium text-muted-foreground">ลูกค้า</th>
                       <th className="px-4 py-3 text-left font-medium text-muted-foreground">สินค้า</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">ปัญหา</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">วันที่</th>
+                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">{issueColumnLabel}</th>
+                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">รับเข้า</th>
                       <th className="px-4 py-3 text-left font-medium text-muted-foreground">สถานะ</th>
                     </tr>
                   </thead>
@@ -91,11 +109,11 @@ export default function ServiceTicketsPage() {
                         </td>
                         <td className="px-4 py-3 text-xs max-w-xs truncate">{t.issue_desc}</td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">
-                          {format(new Date(t.created_at), "dd MMM yyyy HH:mm")}
+                          {format(new Date(t.created_at), "dd MMM yyyy")}
                         </td>
                         <td className="px-4 py-3">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${TICKET_STATUS_COLORS[t.status]}`}>
-                            {TICKET_STATUS_LABELS[t.status]}
+                            {INTAKE_STATUS_LABELS[t.status]}
                           </span>
                         </td>
                       </tr>
@@ -116,9 +134,8 @@ export default function ServiceTicketsPage() {
                       <tr className="border-b border-border bg-muted/30">
                         <th className="px-4 py-2 text-left text-xs text-muted-foreground">เลขเคส</th>
                         <th className="px-4 py-2 text-left text-xs text-muted-foreground">ลูกค้า</th>
-                        <th className="px-4 py-2 text-left text-xs text-muted-foreground">การแก้ปัญหา</th>
+                        <th className="px-4 py-2 text-left text-xs text-muted-foreground">ผล Admin QC</th>
                         <th className="px-4 py-2 text-left text-xs text-muted-foreground">ปิดเคส</th>
-                        <th className="px-4 py-2 text-left text-xs text-muted-foreground">สถานะ</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -130,14 +147,9 @@ export default function ServiceTicketsPage() {
                             </Link>
                           </td>
                           <td className="px-4 py-2">{t.customer?.name ?? "—"}</td>
-                          <td className="px-4 py-2 text-muted-foreground">{t.resolution ? RESOLUTION_LABELS[t.resolution] : "—"}</td>
+                          <td className="px-4 py-2 text-muted-foreground">{t.resolution ? resolutionLabels[t.resolution] : "—"}</td>
                           <td className="px-4 py-2 text-xs text-muted-foreground">
                             {t.closed_at ? format(new Date(t.closed_at), "dd MMM yyyy") : "—"}
-                          </td>
-                          <td className="px-4 py-2">
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${TICKET_STATUS_COLORS[t.status]}`}>
-                              {TICKET_STATUS_LABELS[t.status]}
-                            </span>
                           </td>
                         </tr>
                       ))}
@@ -146,12 +158,6 @@ export default function ServiceTicketsPage() {
                 </CardContent>
               </Card>
             </div>
-          )}
-
-          {tickets.length === 0 && (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">ยังไม่มีเคสบริการ</CardContent>
-            </Card>
           )}
         </>
       )}

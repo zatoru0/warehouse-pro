@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ const emptyLine = (): Line => ({ product_id: "", qty_ordered: "1", unit_price: "
 
 export default function NewPurchaseOrderPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: suppliersData } = useSWR("/api/suppliers", fetcher);
   const { data: productsRes }   = useSWR("/api/products?limit=200", fetcher);
 
@@ -34,6 +35,27 @@ export default function NewPurchaseOrderPage() {
   const [lines,        setLines]        = useState<Line[]>([emptyLine()]);
   const [error,        setError]        = useState("");
   const [submitting,   setSubmitting]   = useState(false);
+  const [prefilled,    setPrefilled]    = useState(false);
+
+  // Pre-fill lines from /inventory/reorder via ?lines=<id>:<qty>:<price>,...
+  useEffect(() => {
+    if (prefilled) return;
+    const raw = searchParams.get("lines");
+    if (!raw) return;
+    const parsed: Line[] = raw.split(",").map((seg) => {
+      const [product_id, qty_ordered, unit_price] = seg.split(":");
+      return {
+        product_id: product_id ?? "",
+        qty_ordered: qty_ordered ?? "1",
+        unit_price:  unit_price  ?? "0",
+        notes: "",
+      };
+    }).filter((l) => l.product_id);
+    if (parsed.length > 0) {
+      setLines(parsed);
+      setPrefilled(true);
+    }
+  }, [searchParams, prefilled]);
 
   function updateLine(i: number, field: keyof Line, value: string) {
     setLines((prev) => {
