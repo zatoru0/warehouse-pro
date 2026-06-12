@@ -45,9 +45,9 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const TYPE_LABELS: Record<string, string> = {
   NEW_GOODS: "สินค้าใหม่",
-  CLAIM:     "เคลม",
-  REPAIR:    "ซ่อม",
   PARTS:     "อะไหล่ / ชิ้นส่วน",
+  REPAIR:    "รับเครื่องซ่อม",
+  CLAIM:     "เคลม",
   RETURN:    "คืนสินค้า",
 };
 
