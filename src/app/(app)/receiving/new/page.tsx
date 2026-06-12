@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,10 @@ type Customer = { id: string; name: string; code: string };
 const needsCustomer = (t: string) => t === "REPAIR";
 const needsSupplier = (t: string) => t === "NEW_GOODS" || t === "PARTS";
 
+// ตามผัง Update Weekly: REPAIR → สต็อกฝ่ายช่าง (PRODUCTION_REPAIR), อื่นๆ → สต็อกหลัก (STOCK)
+const allowedWarehouseType = (t: string) =>
+  t === "REPAIR" ? "PRODUCTION_REPAIR" : "STOCK";
+
 export default function NewReceivingPage() {
   const router = useRouter();
   const { data: warehousesData } = useSWR("/api/warehouses", fetcher);
@@ -36,6 +40,17 @@ export default function NewReceivingPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [supplierId, setSupplierId] = useState("");
   const [customerId, setCustomerId] = useState("");
+
+  const filteredWarehouses = warehouses.filter(
+    (w) => w.type === allowedWarehouseType(type)
+  );
+
+  // reset warehouse selection ถ้าคลังที่เลือกไว้ไม่อยู่ใน type ใหม่
+  useEffect(() => {
+    if (warehouseId && !filteredWarehouses.some((w) => w.id === warehouseId)) {
+      setWarehouseId("");
+    }
+  }, [type, warehouseId, filteredWarehouses]);
   const [referenceDoc, setReferenceDoc] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
@@ -115,9 +130,14 @@ export default function NewReceivingPage() {
               </select>
             </div>
 
-            {/* คลังปลายทาง */}
+            {/* คลังปลายทาง — filter ตามประเภทรับเข้า */}
             <div className="space-y-2">
-              <Label htmlFor="warehouse">คลังปลายทาง</Label>
+              <Label htmlFor="warehouse">
+                คลังปลายทาง{" "}
+                <span className="text-xs font-normal text-muted-foreground">
+                  ({type === "REPAIR" ? "สต็อกฝ่ายช่าง" : "สต็อกหลัก"})
+                </span>
+              </Label>
               <select
                 id="warehouse"
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600/50"
@@ -126,12 +146,17 @@ export default function NewReceivingPage() {
                 required
               >
                 <option value="">-- เลือกคลัง --</option>
-                {(warehouses ?? []).map((w) => (
+                {filteredWarehouses.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name} ({w.code})
                   </option>
                 ))}
               </select>
+              {filteredWarehouses.length === 0 && (
+                <p className="text-xs text-destructive">
+                  ไม่มีคลังประเภท{type === "REPAIR" ? "ฝ่ายช่าง" : "สต็อกหลัก"}ในระบบ
+                </p>
+              )}
             </div>
 
             {/* แหล่งที่มา — แยกตามประเภท */}

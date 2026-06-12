@@ -36,14 +36,21 @@ export async function POST(req: NextRequest) {
   const parsed = receivingJobSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 });
 
-  const job = await createJob({
-    receivingType: parsed.data.receiving_type,
-    warehouseId:   parsed.data.warehouse_id,
-    supplierId:    parsed.data.supplier_id,
-    customerId:    parsed.data.customer_id,
-    referenceDoc:  parsed.data.reference_doc,
-    notes:         parsed.data.notes,
-    receivedBy:    user!.id,
-  });
-  return NextResponse.json(job, { status: 201 });
+  try {
+    const job = await createJob({
+      receivingType: parsed.data.receiving_type,
+      warehouseId:   parsed.data.warehouse_id,
+      supplierId:    parsed.data.supplier_id,
+      customerId:    parsed.data.customer_id,
+      referenceDoc:  parsed.data.reference_doc,
+      notes:         parsed.data.notes,
+      receivedBy:    user!.id,
+    });
+    return NextResponse.json(job, { status: 201 });
+  } catch (err) {
+    return NextResponse.json(
+      { error: { formErrors: [err instanceof Error ? err.message : "เกิดข้อผิดพลาด"] } },
+      { status: 422 }
+    );
+  }
 }

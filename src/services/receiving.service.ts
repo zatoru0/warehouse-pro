@@ -39,7 +39,33 @@ export interface UpdateLineInput {
   lotId?:       string | null;
 }
 
+/**
+ * ตามผัง Update Weekly: REPAIR → สต็อกฝ่ายช่าง (PRODUCTION_REPAIR),
+ * NEW_GOODS / PARTS → สต็อกหลัก (STOCK)
+ */
+const REQUIRED_WAREHOUSE_TYPE: Partial<Record<ReceivingType, "STOCK" | "PRODUCTION_REPAIR">> = {
+  NEW_GOODS:         "STOCK",
+  PARTS:             "STOCK",
+  REPAIR:            "PRODUCTION_REPAIR",
+};
+
 export async function createJob(input: CreateJobInput) {
+  const required = REQUIRED_WAREHOUSE_TYPE[input.receivingType];
+  if (required) {
+    const wh = await prisma.warehouse.findUnique({
+      where:  { id: input.warehouseId },
+      select: { type: true },
+    });
+    if (!wh) throw new Error("ไม่พบคลังปลายทาง");
+    if (wh.type !== required) {
+      throw new Error(
+        input.receivingType === "REPAIR"
+          ? "รับเครื่องซ่อมต้องเข้าคลังประเภทสต็อกฝ่ายช่าง (PRODUCTION_REPAIR)"
+          : "ประเภทรับเข้านี้ต้องเข้าคลังประเภทสต็อกหลัก (STOCK)"
+      );
+    }
+  }
+
   const job_number = await nextReceivingNumber();
   return prisma.receivingJob.create({
     data: {
