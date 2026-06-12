@@ -408,6 +408,7 @@ model Customer {
   service_tickets ServiceTicket[]
   credit_notes    CreditNote[]
   invoices        Invoice[]
+  receiving_jobs  ReceivingJob[]
 
   @@map("customers")
 }
@@ -419,6 +420,7 @@ model ReceivingJob {
   job_number     String         @unique
   receiving_type ReceivingType
   supplier_id    String?
+  customer_id    String?
   warehouse_id   String
   reference_doc  String?
   notes          String?
@@ -429,6 +431,7 @@ model ReceivingJob {
   updated_at     DateTime       @updatedAt
 
   supplier   Supplier?       @relation(fields: [supplier_id], references: [id])
+  customer   Customer?       @relation(fields: [customer_id], references: [id])
   warehouse  Warehouse       @relation(fields: [warehouse_id], references: [id])
   receiver   User            @relation(fields: [received_by], references: [id])
   lines      ReceivingLine[]

@@ -12,6 +12,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
     include: {
       receiver: { select: { full_name: true } },
       supplier: true,
+      customer: true,
       lines: { include: { product: true, lot: true } },
       qc_records: true,
     },

@@ -17,6 +17,7 @@ export interface CreateJobInput {
   receivingType: ReceivingType;
   warehouseId:   string;
   supplierId?:   string | null;
+  customerId?:   string | null;
   referenceDoc?: string | null;
   notes?:        string | null;
   receivedBy:    string;
@@ -46,6 +47,7 @@ export async function createJob(input: CreateJobInput) {
       receiving_type: input.receivingType,
       warehouse_id:   input.warehouseId,
       supplier_id:    input.supplierId,
+      customer_id:    input.customerId,
       reference_doc:  input.referenceDoc,
       notes:          input.notes,
       received_by:    input.receivedBy,

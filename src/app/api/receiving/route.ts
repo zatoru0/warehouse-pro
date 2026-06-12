@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
     receivingType: parsed.data.receiving_type,
     warehouseId:   parsed.data.warehouse_id,
     supplierId:    parsed.data.supplier_id,
+    customerId:    parsed.data.customer_id,
     referenceDoc:  parsed.data.reference_doc,
     notes:         parsed.data.notes,
     receivedBy:    user!.id,

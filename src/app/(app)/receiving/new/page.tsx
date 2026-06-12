@@ -18,17 +18,24 @@ const TYPE_OPTIONS = [
 
 type Warehouse = { id: string; name: string; code: string; type: string };
 type Supplier = { id: string; name: string; code: string };
+type Customer = { id: string; name: string; code: string };
+
+const needsCustomer = (t: string) => t === "REPAIR";
+const needsSupplier = (t: string) => t === "NEW_GOODS" || t === "PARTS";
 
 export default function NewReceivingPage() {
   const router = useRouter();
   const { data: warehousesData } = useSWR("/api/warehouses", fetcher);
   const { data: suppliersData } = useSWR("/api/suppliers", fetcher);
+  const { data: customersData } = useSWR("/api/customers", fetcher);
   const warehouses: Warehouse[] = Array.isArray(warehousesData) ? warehousesData : [];
   const suppliers: Supplier[] = Array.isArray(suppliersData) ? suppliersData : [];
+  const customers: Customer[] = Array.isArray(customersData) ? customersData : [];
 
   const [type, setType] = useState("NEW_GOODS");
   const [warehouseId, setWarehouseId] = useState("");
   const [supplierId, setSupplierId] = useState("");
+  const [customerId, setCustomerId] = useState("");
   const [referenceDoc, setReferenceDoc] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
@@ -45,7 +52,8 @@ export default function NewReceivingPage() {
       body: JSON.stringify({
         receiving_type: type,
         warehouse_id: warehouseId,
-        supplier_id: supplierId || null,
+        supplier_id: needsSupplier(type) ? supplierId || null : null,
+        customer_id: needsCustomer(type) ? customerId || null : null,
         reference_doc: referenceDoc || null,
         notes: notes || null,
       }),
@@ -53,7 +61,12 @@ export default function NewReceivingPage() {
     const data = await res.json();
 
     if (!res.ok) {
-      setError(data.error?.formErrors?.[0] ?? "เกิดข้อผิดพลาด");
+      const fieldErrors = data.error?.fieldErrors;
+      const firstFieldError =
+        fieldErrors?.supplier_id?.[0] ??
+        fieldErrors?.customer_id?.[0] ??
+        fieldErrors?.warehouse_id?.[0];
+      setError(firstFieldError ?? data.error?.formErrors?.[0] ?? "เกิดข้อผิดพลาด");
       setSubmitting(false);
       return;
     }
@@ -121,23 +134,46 @@ export default function NewReceivingPage() {
               </select>
             </div>
 
-            {/* ผู้จัดหา (optional) */}
-            <div className="space-y-2">
-              <Label htmlFor="supplier">ผู้จัดหา (ไม่บังคับ)</Label>
-              <select
-                id="supplier"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600/50"
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-              >
-                <option value="">-- ไม่ระบุ --</option>
-                {(suppliers ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* แหล่งที่มา — แยกตามประเภท */}
+            {needsSupplier(type) && (
+              <div className="space-y-2">
+                <Label htmlFor="supplier">ผู้จัดหา</Label>
+                <select
+                  id="supplier"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600/50"
+                  value={supplierId}
+                  onChange={(e) => setSupplierId(e.target.value)}
+                  required
+                >
+                  <option value="">-- เลือกผู้จัดหา --</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {needsCustomer(type) && (
+              <div className="space-y-2">
+                <Label htmlFor="customer">ลูกค้า (เจ้าของเครื่อง)</Label>
+                <select
+                  id="customer"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600/50"
+                  value={customerId}
+                  onChange={(e) => setCustomerId(e.target.value)}
+                  required
+                >
+                  <option value="">-- เลือกลูกค้า --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* เอกสารอ้างอิง */}
             <div className="space-y-2">
