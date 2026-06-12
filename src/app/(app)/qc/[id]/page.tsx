@@ -35,6 +35,8 @@ export default function QcDetailPage({
   const [qtyPassed, setQtyPassed] = useState("");
   const [qtyFailed, setQtyFailed] = useState("");
   const [notes, setNotes] = useState("");
+  // ✨ เพิ่ม State สำหรับรับค่าจากตัวเลือกสายการทำงาน
+  const [isDefective, setIsDefective] = useState(false); 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -52,7 +54,8 @@ export default function QcDetailPage({
     const res = await fetch(`/api/qc/${id}/review`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ result, qty_passed: passed, qty_failed: failed, notes }),
+      // ✨ เพิ่ม isDefective แนบไปกับข้อมูลที่จะส่งให้ API หลังบ้าน
+      body: JSON.stringify({ result, qty_passed: passed, qty_failed: failed, notes, isDefective }),
     });
 
     if (!res.ok) {
@@ -163,6 +166,42 @@ export default function QcDetailPage({
                 />
               </div>
             </div>
+
+            {/* ✨ เพิ่มส่วนให้เลือกประเภทของเสีย (จะแสดงเมื่อมีจำนวนไม่ผ่าน > 0) */}
+            {Number(qtyFailed) > 0 && (
+              <div className="space-y-2 pt-2">
+                <Label>การจัดการกรณีไม่ผ่าน (แยกตาม Flowchart)</Label>
+                <div className="flex flex-col gap-3 rounded-lg border p-3 bg-muted/20">
+                  <label className="flex items-start gap-2 cursor-pointer text-sm">
+                    <input
+                      type="radio"
+                      name="defect_type"
+                      checked={!isDefective}
+                      onChange={() => setIsDefective(false)}
+                      className="mt-0.5 cursor-pointer"
+                    />
+                    <div>
+                      <span className="font-semibold text-blue-600">ส่งประกอบใหม่ / แก้ไข</span>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">สินค้าไม่ชำรุด แค่ประกอบผิดหรือต้องปรับปรุง (ส่งกลับฝ่ายผลิต)</p>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-2 cursor-pointer text-sm">
+                    <input
+                      type="radio"
+                      name="defect_type"
+                      checked={isDefective}
+                      onChange={() => setIsDefective(true)}
+                      className="mt-0.5 cursor-pointer"
+                    />
+                    <div>
+                      <span className="font-semibold text-orange-600">ส่งซ่อม (สินค้าเสีย)</span>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">อุปกรณ์ชำรุด เสียหาย ต้องส่งให้ช่างหรือบริการหลังการขาย</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="notes">หมายเหตุ</Label>
               <textarea

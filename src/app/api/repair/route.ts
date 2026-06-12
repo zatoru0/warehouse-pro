@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { createRepairJob } from "@/services/repair.service";
 import { z } from "zod";
 
+// ✨ เพิ่มบรรทัดนี้: บังคับไม่ให้ Next.js จำข้อมูลเก่า (Disable Cache)
+export const dynamic = "force-dynamic";
+
 const schema = z.object({
   productId:   z.string(),
   lotId:       z.string().optional().nullable(),

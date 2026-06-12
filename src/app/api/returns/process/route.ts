@@ -72,71 +72,72 @@ export async function POST(req: NextRequest) {
       }
 
       // ==========================================
-      // กรณี: QC ผ่าน
+      // กรณี: QC ผ่าน (ออกใบลดหนี้คืนเงิน)
       // ==========================================
       if (result === "PASS") {
         await tx.creditNote.create({
           data: {
             cn_number: `CN-${Date.now()}`,
             reason: `คืนเงินสินค้าสมบูรณ์ (ลูกค้า: ${customer_id})`,
-            total_amount: amount,
+            total_amount: Number(amount),
             status: "DRAFT",
             issued_by: user!.id,
             lines: {
               create: [{
                 product_id: realProductId,
                 description: "คืนเงินค่าสินค้า",
-                qty: qty,
-                unit_price: amount,
-                amount: amount
+                qty: Number(qty),
+                unit_price: Number(amount),
+                amount: Number(amount)
               }]
             }
           }
         });
 
-        const returnBin = await tx.bin.findFirst({ where: { code: "RETURNED_GOODS" } });
-        if (returnBin) {
+        // 🎯 แก้ไขปลายทาง: เปลี่ยนเป็นโอนย้ายสินค้าเข้าคลังแผนก QC
+        const qcBin = await tx.bin.findFirst({ where: { code: "QC_BIN" } });
+        if (qcBin) {
           await tx.stockItem.upsert({
             where: {
               product_id_lot_id_bin_id: { 
                 product_id: realProductId, 
-                lot_id: actualLotId, // ใช้ Lot ID ที่เช็กแล้ว
-                bin_id: returnBin.id 
+                lot_id: actualLotId, 
+                bin_id: qcBin.id 
               }
             },
-            update: { qty_on_hand: { increment: qty } },
+            update: { qty_on_hand: { increment: Number(qty) } },
             create: { 
               product_id: realProductId, 
-              lot_id: actualLotId, // ใช้ Lot ID ที่เช็กแล้ว
-              bin_id: returnBin.id, 
-              qty_on_hand: qty 
+              lot_id: actualLotId, 
+              bin_id: qcBin.id, 
+              qty_on_hand: Number(qty) 
             }
           });
           
           await tx.stockMovement.create({
             data: {
               product_id: realProductId,
-              lot_id: actualLotId, // ใช้ Lot ID ที่เช็กแล้ว
+              lot_id: actualLotId, 
               movement_type: "RECEIVE",
               reference_type: "RETURN",
-              qty: qty,
-              to_bin_id: returnBin.id,
+              qty: Number(qty),
+              to_bin_id: qcBin.id,
               performed_by: user!.id,
-              notes: "QC ผ่าน: ส่งเข้าคลังสินค้ารับคืน",
+              notes: "ส่งสินค้าคืนเข้าแผนก QC รอการตรวจสอบ",
             }
           });
         }
       } 
       
       // ==========================================
-      // กรณี: QC ไม่ผ่าน
+      // กรณี: QC ไม่ผ่าน (ออกใบเรียกเก็บค่าซ่อม)
       // ==========================================
       else if (result === "FAIL") {
         await tx.invoice.create({
           data: {
             invoice_number: `INV-${Date.now()}`,
             reason: `เรียกเก็บค่าอะไหล่/ซ่อมแซม (ลูกค้า: ${customer_id})`,
-            total_amount: amount,
+            total_amount: Number(amount),
             status: "DRAFT",
             issued_by: user!.id,
             lines: {
@@ -144,46 +145,62 @@ export async function POST(req: NextRequest) {
                 product_id: realProductId,
                 description: "ค่าบริการและชิ้นส่วนอะไหล่",
                 qty: 1,
-                unit_price: amount,
-                amount: amount
+                unit_price: Number(amount),
+                amount: Number(amount)
               }]
             }
           }
         });
 
-        const repairBin = await tx.bin.findFirst({ where: { code: "WAIT_REPAIR" } });
-        if (repairBin) {
+        // 🎯 แก้ไขปลายทาง: เปลี่ยนเป็นโอนย้ายสินค้าเข้าคลังแผนก QC
+        const qcBin = await tx.bin.findFirst({ where: { code: "QC_BIN" } });
+        if (qcBin) {
           await tx.stockItem.upsert({
             where: {
               product_id_lot_id_bin_id: { 
                 product_id: realProductId, 
-                lot_id: actualLotId, // ใช้ Lot ID ที่เช็กแล้ว
-                bin_id: repairBin.id 
+                lot_id: actualLotId, 
+                bin_id: qcBin.id 
               }
             },
-            update: { qty_on_hand: { increment: qty } },
+            update: { qty_on_hand: { increment: Number(qty) } },
             create: { 
               product_id: realProductId, 
-              lot_id: actualLotId, // ใช้ Lot ID ที่เช็กแล้ว
-              bin_id: repairBin.id, 
-              qty_on_hand: qty 
+              lot_id: actualLotId, 
+              bin_id: qcBin.id, 
+              qty_on_hand: Number(qty) 
             }
           });
 
           await tx.stockMovement.create({
             data: {
               product_id: realProductId,
-              lot_id: actualLotId, // ใช้ Lot ID ที่เช็กแล้ว
+              lot_id: actualLotId, 
               movement_type: "TRANSFER",
               reference_type: "RETURN",
-              qty: qty,
-              to_bin_id: repairBin.id,
+              qty: Number(qty),
+              to_bin_id: qcBin.id,
               performed_by: user!.id,
-              notes: "QC ไม่ผ่าน: ส่งเครื่องเข้าคลัง WAIT_REPAIR",
+              notes: "ส่งสินค้าชำรุดเข้าแผนก QC เพื่อประเมิน",
             }
           });
         }
       }
+      const qcBinInfo = await tx.bin.findFirst({ where: { code: "QC_BIN" } }); 
+      
+      await tx.qcRecord.create({
+        data: {
+          product_id: realProductId,
+          lot_id: actualLotId,
+          qty_inspected: Number(qty), // จำนวนที่ส่งไปรอตรวจ
+          result: "PENDING",          // สถานะ 'รอตรวจสอบ' เพื่อให้เด้งในตารางหน้าแรก
+          notes: `งานรับคืนรอตรวจสอบ (ลูกค้า: ${customer_id}, ผลตรวจรับเข้า: ${result === "PASS" ? "ผ่าน" : "ไม่ผ่าน"})`,
+          // ใช้รหัส user คนปัจจุบันเป็นผู้สร้างคิวงานไปก่อน (หรือจะปล่อยว่างถ้า inspector เป็น optional)
+          inspected_by: user!.id, 
+        }
+      });
+
+      // (หมายเหตุ: ลบการสร้าง productionJob ด้านล่างทิ้งทั้งหมด เพื่อให้ไปหยุดที่กระบวนการ QC ตามที่คุณต้องการ)
 
       return { success: true };
     });

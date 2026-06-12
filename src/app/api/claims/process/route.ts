@@ -78,13 +78,38 @@ export async function POST(req: NextRequest) {
             update: { qty_on_hand: { increment: qty } },
             create: { product_id: product.id, lot_id: lotId, bin_id: repairBin.id, qty_on_hand: qty }
           });
+
+          // ✨ เพิ่มส่วนนี้: สร้างตั๋วงานซ่อมแซมเพื่อให้แสดงบนหน้าจอคิวงานของฝ่ายซ่อม
+          await tx.repairJob.create({
+            data: {
+              job_number: `RP-EXC-${Date.now()}`,
+              product_id: product.id,
+              status: "WAIT_REPAIR",
+              issue_desc: `เครื่องเก่ารับคืนจากการแลกเปลี่ยน (เสียจากลูกค้า) - ชื่อลูกค้า: ${customer_id}`,
+              received_by: user!.id
+            }
+          });
         }
 
-        // 3.2 ตัดสต็อกเครื่องใหม่ให้ลูกค้า (หน้าตู้)
+        // 3.2 ตัดสต็อกเครื่องใหม่ให้ลูกค้า (หน้าตู้) - ✨ แก้ไขเพื่อป้องกันบั๊กตัดสต็อกผิดพลาด
         const frontBin = await tx.bin.findFirst({ where: { code: "FRONT_STOCK" } }); 
         if (frontBin) {
-          await tx.stockItem.updateMany({
-            where: { product_id: product.id, bin_id: frontBin.id },
+          const availableStock = await tx.stockItem.findFirst({
+            where: { product_id: product.id, bin_id: frontBin.id, qty_on_hand: { gte: qty } }
+          });
+
+          if (!availableStock) {
+            throw new Error("สต็อกเครื่องใหม่ (FRONT_STOCK) ไม่เพียงพอสำหรับการแลกเปลี่ยน");
+          }
+
+          await tx.stockItem.update({
+            where: { 
+              product_id_lot_id_bin_id: { 
+                product_id: product.id, 
+                lot_id: availableStock.lot_id, 
+                bin_id: frontBin.id 
+              } 
+            },
             data: { qty_on_hand: { decrement: qty } }
           });
         }
