@@ -82,12 +82,36 @@ export async function createJob(input: CreateJobInput) {
 }
 
 export async function addLine(input: AddLineInput) {
+  // Pre-fill bin จาก Product.default_bin_id ตามผัง — ต่อเมื่อ default bin อยู่คลังเดียวกับงานรับเข้า
+  const [product, job] = await Promise.all([
+    prisma.product.findUnique({
+      where:  { id: input.productId },
+      select: { default_bin_id: true },
+    }),
+    prisma.receivingJob.findUnique({
+      where:  { id: input.jobId },
+      select: { warehouse_id: true },
+    }),
+  ]);
+
+  let defaultBinId: string | null = null;
+  if (product?.default_bin_id && job) {
+    const bin = await prisma.bin.findUnique({
+      where:  { id: product.default_bin_id },
+      select: { warehouse_id: true },
+    });
+    if (bin?.warehouse_id === job.warehouse_id) {
+      defaultBinId = product.default_bin_id;
+    }
+  }
+
   return prisma.receivingLine.create({
     data: {
       receiving_job_id: input.jobId,
       product_id:       input.productId,
       expected_qty:     input.expectedQty,
       unit_cost:        input.unitCost ?? 0,
+      bin_id:           defaultBinId,
       notes:            input.notes,
     },
   });
