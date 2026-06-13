@@ -3,6 +3,7 @@
  * พร้อมแยกโฟลว์: ผ่านรอตีตรา, เสียส่งซ่อม, หรือประกอบผิดส่งแก้ไข
  */
 import { prisma } from "@/lib/prisma";
+import { nextRepairNumber, nextProductionNumber } from "@/services/numbering.service";
 // TODO: อย่าลืม Import numbering.service ตามที่โปรเจกต์คุณใช้ เช่น
 // import { generateDocumentNumber } from "@/services/numbering.service";
 
@@ -102,11 +103,11 @@ export async function reviewRecord(input: ReviewInput) {
 
           // 🚨 รันเอกสารด้วย Numbering Service แทน Date.now()
           // const rpJobNum = await generateDocumentNumber("REPAIR_JOB", tx);
-          const rpJobNum = `RP-QC-${Date.now()}`; // **แก้บรรทัดนี้ให้ใช้ Service ของคุณ**
+          const rpJobNum = await nextRepairNumber();
 
           await tx.repairJob.create({
             data: {
-              job_number: rpJobNum,
+              job_number: rpJobNum, // จะได้เลขสวยๆ เช่น RPR-20260614-0001
               product_id: record.product_id,
               status: "WAIT_REPAIR",
               issue_desc: `แจ้งซ่อมจาก QC (ใบตรวจ: ${record.id}) - เหตุผล: ${input.notes || "ไม่ระบุ"}`,
@@ -117,8 +118,11 @@ export async function reviewRecord(input: ReviewInput) {
         
         // สาย B: แค่ "ประกอบผิด" -> ส่งแก้ไข (เข้าคลัง ASSEMBLY)
         else {
-          const assemblyBin = await tx.bin.findFirst({ where: { code: "ASSEMBLY" } });
-          if (!assemblyBin) throw new Error("❌ ข้อมูลคลังผิดพลาด: ไม่พบคลัง 'ASSEMBLY'");
+          const assemblyBin = await tx.bin.findFirst({ 
+          where: { code: "ASSEMBLY" },
+          include: { warehouse: true } // ✨ ดึงข้อมูลโกดังแม่มาด้วย
+        });
+        if (!assemblyBin) throw new Error("❌ ข้อมูลคลังผิดพลาด: ไม่พบคลัง 'ASSEMBLY'");
 
           await tx.stockItem.upsert({
             where: { product_id_lot_id_bin_id: { product_id: record.product_id, lot_id: record.lot_id, bin_id: assemblyBin.id } },
@@ -136,13 +140,13 @@ export async function reviewRecord(input: ReviewInput) {
 
           // 🚨 รันเอกสารด้วย Numbering Service แทน Date.now()
           // const prdJobNum = await generateDocumentNumber("PRODUCTION_JOB", tx);
-          const prdJobNum = `PD-REWORK-${Date.now()}`; // **แก้บรรทัดนี้ให้ใช้ Service ของคุณ**
+          const prdJobNum = await nextProductionNumber();
 
           await tx.productionJob.create({
             data: {
               job_number: prdJobNum,
               product_id: record.product_id,
-              warehouse_id: defaultWarehouse.id,
+              warehouse_id: assemblyBin.warehouse_id, 
               job_type: "REWORK", 
               qty_planned: input.qtyFailed,
               qty_produced: 0,

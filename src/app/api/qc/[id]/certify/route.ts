@@ -22,7 +22,10 @@ export async function POST(
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const record = await tx.qcRecord.findUnique({ where: { id } });
+      const record = await tx.qcRecord.findUnique({ 
+        where: { id },
+        include: { product: true } 
+      });
       if (!record) throw new Error("ไม่พบรายการ QC");
       if (record.result !== "PASS") throw new Error("ต้องผ่าน QC ก่อนตีตรา");
       if (record.is_certified) throw new Error("รายการนี้ถูกตีตราไปแล้ว");
@@ -33,10 +36,16 @@ export async function POST(
       const updated = await tx.qcRecord.update({
         where: { id },
         data: {
-          is_certified:  true, // ถือว่าผ่านกระบวนการพิจารณาตีตราแล้ว
-          certified_at:  new Date(),
-          certified_by:  user!.id,
+          // ✨ ถ้าตีตราไม่ผ่าน จะไม่ถือว่า certified และตีกลับสถานะใบ QC เป็น FAIL
+          is_certified:  passed ? true : false,
+          certified_at:  passed ? new Date() : null,
+          certified_by:  passed ? user!.id : null,
           certify_notes: passed ? notes : `[ตีตราไม่ผ่าน] ${notes || ""}`,
+          
+          // ✨ ดาวน์เกรดผลลัพธ์ และโอนยอดจากที่เคยบอกว่าผ่าน ให้กลายเป็นยอดเสีย
+          result: passed ? "PASS" : "FAIL",
+          qty_passed: passed ? record.qty_passed : 0,
+          qty_failed: passed ? record.qty_failed : { increment: record.qty_passed },
         },
       });
 
@@ -54,18 +63,23 @@ export async function POST(
         // 🟢 สาย A: ตีตรา "ผ่าน" -> เข้าคลังพร้อมขาย (READY_BIN)
         // ==========================================
         if (passed) {
+          
+          // ✨ ใช้การหาคลังประเภท READY แต่บล็อกไม่ให้หยิบถัง RESERVED (สินค้าจอง)
           const readyBin = await tx.bin.findFirst({ 
             where: { 
               OR: [
-                { code: "FRONT_STOCK" }, // คลังหน้าร้าน/พร้อมขายของคุณ
-                { code: "READY_BIN" }, 
-                { code: "READY" },
+                { code: "FRONT_STOCK" }, 
+                { code: "READY_BIN" },
                 { code: "STOCK" },
-                { warehouse: { type: "READY" } }
-              ] 
+                { warehouse: { type: "READY" } } // ถ้าหาชื่อไม่เจอ ให้หาโกดังประเภท READY
+              ],
+              NOT: {
+                code: "RESERVED" // 🚨 กฎเหล็ก: ห้ามหยิบถังที่ชื่อ RESERVED เด็ดขาด
+              }
             } 
           });
-          if (!readyBin) throw new Error("❌ ข้อมูลคลังผิดพลาด: ไม่พบคลังสำหรับจัดเก็บสินค้าพร้อมขาย (เช่น FRONT_STOCK, READY) ในระบบ");
+          
+          if (!readyBin) throw new Error("❌ ข้อมูลคลังผิดพลาด: ไม่พบคลังจัดเก็บสินค้าพร้อมขายที่ใช้งานได้");
 
           await tx.stockItem.upsert({
             where: { product_id_lot_id_bin_id: { product_id: record.product_id, lot_id: record.lot_id, bin_id: readyBin.id } },
@@ -114,7 +128,10 @@ export async function POST(
       timeout: 20000, // ให้เวลาทำงาน 20 วินาที
     });
     return NextResponse.json(result);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    return NextResponse.json({ error: "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ" }, { status: 400 });
   }
 }
