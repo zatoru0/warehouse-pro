@@ -302,6 +302,7 @@ model Product {
   service_tickets      ServiceTicket[]
   credit_note_lines    CreditNoteLine[]
   invoice_lines        InvoiceLine[]
+  bom_lines            ProductionBomLine[] @relation("BomMaterial")
 
   @@map("products")
 }
@@ -519,9 +520,28 @@ model ProductionJob {
   warehouse     Warehouse @relation(fields: [warehouse_id], references: [id])
   assigned_user User?     @relation(fields: [assigned_to],  references: [id])
   qc_records    QcRecord[]
+  bom_lines     ProductionBomLine[]
 
   @@index([status])
   @@map("production_jobs")
+}
+
+// รายการวัตถุดิบที่งานผลิตต้องใช้ (Bill of Materials per job)
+// ตามผัง Update Weekly: "เป้าหมายงานผลิต → เบิกสต็อกตามรายการ"
+model ProductionBomLine {
+  id                  String   @id @default(cuid())
+  production_job_id   String
+  material_product_id String
+  qty_required        Decimal
+  qty_issued          Decimal  @default(0)
+  notes               String?
+  created_at          DateTime @default(now())
+
+  production_job ProductionJob @relation(fields: [production_job_id], references: [id], onDelete: Cascade)
+  material       Product       @relation("BomMaterial", fields: [material_product_id], references: [id])
+
+  @@index([production_job_id])
+  @@map("production_bom_lines")
 }
 
 // ─── ORDERS ──────────────────────────────────────────────────────────────────

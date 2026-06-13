@@ -18,6 +18,12 @@ export async function GET(
       warehouse: { select: { name: true, code: true, type: true } },
       assigned_user: { select: { full_name: true } },
       qc_records: true,
+      bom_lines: {
+        include: {
+          material: { select: { name: true, sku: true, unit: true } },
+        },
+        orderBy: { created_at: "asc" },
+      },
     },
   });
 

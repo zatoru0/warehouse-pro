@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { Play, Check, FlaskConical } from "lucide-react";
+import { BomSection } from "./bom-section";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -172,6 +173,15 @@ export default function ProductionDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {/* BOM — วัตถุดิบที่ต้องใช้ */}
+      <BomSection
+        jobId={jobId}
+        bomLines={job.bom_lines ?? []}
+        isEditable={!isDone}
+        isIssuable={isInProgress}
+        onChange={mutate}
+      />
 
       {/* Actions per state */}
       {isPending && (
