@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { ProductionPriority } from "@prisma/client";
 import { nextProductionNumber } from "./numbering.service";
 import { createNotification } from "./notification.service";
+import { createLot } from "./lot.service";
+import { writeMovement } from "./stock.service";
 
 export interface CreateJobInput {
   jobType:        string;
@@ -68,7 +70,12 @@ export async function startJob(jobId: string) {
 }
 
 /**
- * บันทึกผลผลิต + ส่ง QC อัตโนมัติถ้าสินค้าต้องตรวจ
+ * บันทึกผลผลิต + ดันของที่ผลิตได้เข้าสต็อก + ส่ง QC อัตโนมัติถ้าสินค้าต้องตรวจ
+ *
+ * ตามผัง: ประกอบ → (ส่ง QC) → ตีตรา → พร้อมขาย
+ * - ถ้าต้อง QC: ของเข้าคลัง WAIT_QC (รอตรวจ) + สร้าง QcRecord
+ * - ถ้าไม่ต้อง QC: ของเข้าคลังพร้อมขาย (READY) ได้เลย
+ * ผูกของกับ lot — ถ้างานไม่มี lot จะสร้าง lot ใหม่ให้ (1 batch = 1 lot)
  */
 export async function completeJob(input: CompleteJobInput) {
   const { jobId, qtyProduced, sendToQc, performedBy, notes } = input;
@@ -82,7 +89,68 @@ export async function completeJob(input: CompleteJobInput) {
     throw new Error("งานเสร็จสิ้นแล้ว");
   }
 
-  const updated = await prisma.productionJob.update({
+  const toQc = sendToQc && job.product.allow_qc;
+
+  if (qtyProduced > 0) {
+    // ปลายทางของผลผลิต: รอตรวจ QC หรือ พร้อมขาย
+    const targetBin = toQc
+      ? await prisma.bin.findFirst({ where: { code: "WAIT_QC" } })
+      : await prisma.bin.findFirst({ where: { warehouse: { type: "READY" } } });
+    if (!targetBin) {
+      throw new Error(
+        toQc
+          ? "ไม่พบคลัง WAIT_QC สำหรับส่งตรวจ QC"
+          : "ไม่พบคลังพร้อมขาย (READY) สำหรับเก็บผลผลิต"
+      );
+    }
+
+    // ผูก lot — ใช้ของงาน หรือสร้างใหม่ถ้ายังไม่มี
+    const lotId =
+      job.lot_id ?? (await createLot({ productId: job.product_id })).id;
+
+    await writeMovement({
+      productId:     job.product_id,
+      lotId,
+      toBinId:       targetBin.id,
+      type:          "RECEIVE",
+      qty:           qtyProduced,
+      performedBy,
+      referenceType: "production_job",
+      referenceId:   jobId,
+      notes:         `ผลผลิตจากงาน ${job.job_number}`,
+    });
+
+    if (toQc) {
+      await prisma.qcRecord.create({
+        data: {
+          production_job_id: jobId,
+          product_id:        job.product_id,
+          lot_id:            lotId,
+          qty_inspected:     qtyProduced,
+          inspected_by:      performedBy,
+        },
+      });
+      await createNotification({
+        type:  "QC_PENDING",
+        title: `QC รอตรวจ (ผลิต): ${job.product.name}`,
+        body:  `งานผลิต ${job.job_number} ผลิต ${qtyProduced} ชิ้น — รอตรวจ QC`,
+        link:  "/qc",
+      });
+    }
+
+    return prisma.productionJob.update({
+      where: { id: jobId },
+      data: {
+        status:       "COMPLETED",
+        qty_produced: qtyProduced,
+        lot_id:       lotId,
+        completed_at: new Date(),
+        notes:        notes ?? job.notes,
+      },
+    });
+  }
+
+  return prisma.productionJob.update({
     where: { id: jobId },
     data: {
       status:       "COMPLETED",
@@ -91,18 +159,4 @@ export async function completeJob(input: CompleteJobInput) {
       notes:        notes ?? job.notes,
     },
   });
-
-  if (sendToQc && job.product.allow_qc && qtyProduced > 0) {
-    await prisma.qcRecord.create({
-      data: {
-        production_job_id: jobId,
-        product_id:        job.product_id,
-        lot_id:            job.lot_id,
-        qty_inspected:     qtyProduced,
-        inspected_by:      performedBy,
-      },
-    });
-  }
-
-  return updated;
 }
