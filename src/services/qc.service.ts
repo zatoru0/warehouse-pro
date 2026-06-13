@@ -1,7 +1,10 @@
 /**
- * QC review — บันทึกผลการตรวจสอบคุณภาพ (PASS / FAIL) พร้อมแยกโฟลว์ แก้ไข/ส่งซ่อม
+ * QC review — บันทึกผลการตรวจสอบคุณภาพ (PASS / FAIL) 
+ * พร้อมแยกโฟลว์: ผ่านรอตีตรา, เสียส่งซ่อม, หรือประกอบผิดส่งแก้ไข
  */
 import { prisma } from "@/lib/prisma";
+// TODO: อย่าลืม Import numbering.service ตามที่โปรเจกต์คุณใช้ เช่น
+// import { generateDocumentNumber } from "@/services/numbering.service";
 
 export interface ReviewInput {
   recordId:    string;
@@ -10,7 +13,7 @@ export interface ReviewInput {
   qtyFailed:   number;
   inspectedBy: string;
   notes?:      string;
-  isDefective?: boolean; // ✨ เพิ่มตัวแปร: ระบุว่า "สินค้าเสีย (true)" หรือ "แค่ต้องแก้ไข (false)"
+  isDefective?: boolean; 
 }
 
 export async function reviewRecord(input: ReviewInput) {
@@ -33,94 +36,122 @@ export async function reviewRecord(input: ReviewInput) {
       },
     });
 
-    // 2. จัดการสต็อก QC ขาออก (หาถังเก็บ QC เพื่อดึงของออก)
-    const qcBin = await tx.bin.findFirst({ where: { code: "QC_BIN" } });
+    if (record.lot_id) {
+      // 🎯 หาคลังต้นทางที่ของรอตรวจอยู่ (Seed ใช้ WAIT_QC)
+      const waitQcBin = await tx.bin.findFirst({ where: { code: "WAIT_QC" } });
+      if (!waitQcBin) throw new Error("❌ ข้อมูลคลังผิดพลาด: ไม่พบคลัง 'WAIT_QC' ในระบบ");
 
-    // 3. ✨ กระบวนการแยกสายเมื่อ "ไม่ผ่าน" ตาม Flowchart
-    if (input.qtyFailed > 0 && qcBin && record.lot_id) {
-      
-      const defaultWarehouse = await tx.warehouse.findFirst();
-      if (!defaultWarehouse) throw new Error("ไม่พบคลังสินค้าหลักในระบบ");
-
-      // หักยอดของเสียออกจากคลัง QC 
-      await tx.stockItem.updateMany({
-        where: { product_id: record.product_id, lot_id: record.lot_id, bin_id: qcBin.id },
-        data: { qty_on_hand: { decrement: input.qtyFailed } }
-      });
+      const defaultWarehouse = await tx.warehouse.findFirst(); // หรือระบุให้เจาะจงถ้ามี
+      if (!defaultWarehouse) throw new Error("❌ ไม่พบคลังสินค้าหลักในระบบ");
 
       // ==========================================
-      // สาย A: สินค้า "เสีย" -> ส่งซ่อม (ฝ่ายบริการหลังการขาย / สต็อกช่าง)
+      // โฟลว์ของที่ "ผ่าน QC" (PASS) -> โอนไปพักที่ QC_PASS รอการตีตรา
       // ==========================================
-      if (input.isDefective) {
-        // ✨ แก้ไข 1: เปลี่ยนรหัสคลังเป็น WAIT_REPAIR เพื่อให้ตรงกับสต็อกรอซ่อม
-        const techBin = await tx.bin.findFirst({ where: { code: "WAIT_REPAIR" } });
+      if (input.qtyPassed > 0) {
+        const qcPassBin = await tx.bin.findFirst({ where: { code: "QC_PASS" } });
+        if (!qcPassBin) throw new Error("❌ ข้อมูลคลังผิดพลาด: ไม่พบคลัง 'QC_PASS' สำหรับเก็บของรอตีตรา");
+
+        await tx.stockItem.updateMany({
+          where: { product_id: record.product_id, lot_id: record.lot_id, bin_id: waitQcBin.id },
+          data: { qty_on_hand: { decrement: input.qtyPassed } }
+        });
+
+        await tx.stockItem.upsert({
+          where: { product_id_lot_id_bin_id: { product_id: record.product_id, lot_id: record.lot_id, bin_id: qcPassBin.id } },
+          update: { qty_on_hand: { increment: input.qtyPassed } },
+          create: { product_id: record.product_id, lot_id: record.lot_id, bin_id: qcPassBin.id, qty_on_hand: input.qtyPassed }
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            product_id: record.product_id, lot_id: record.lot_id, movement_type: "TRANSFER", reference_type: "QC",
+            qty: input.qtyPassed, from_bin_id: waitQcBin.id, to_bin_id: qcPassBin.id, performed_by: input.inspectedBy,
+            notes: "QC ผ่าน: โอนย้ายสินค้ารอตีตรา (Certify)",
+          }
+        });
+      }
+
+      // ==========================================
+      // โฟลว์ของที่ "ไม่ผ่าน QC" (FAIL) -> แยกสาย ซ่อม / แก้ไข
+      // ==========================================
+      if (input.qtyFailed > 0) {
+        // หักของเสียออกจาก WAIT_QC
+        await tx.stockItem.updateMany({
+          where: { product_id: record.product_id, lot_id: record.lot_id, bin_id: waitQcBin.id },
+          data: { qty_on_hand: { decrement: input.qtyFailed } }
+        });
+
+        // สาย A: สินค้า "เสีย" -> ส่งซ่อม (เข้าคลัง WAIT_REPAIR)
+        if (input.isDefective) {
+          const repairBin = await tx.bin.findFirst({ where: { code: "WAIT_REPAIR" } });
+          if (!repairBin) throw new Error("❌ ข้อมูลคลังผิดพลาด: ไม่พบคลัง 'WAIT_REPAIR'");
+          
+          await tx.stockItem.upsert({
+            where: { product_id_lot_id_bin_id: { product_id: record.product_id, lot_id: record.lot_id, bin_id: repairBin.id } },
+            update: { qty_on_hand: { increment: input.qtyFailed } },
+            create: { product_id: record.product_id, lot_id: record.lot_id, bin_id: repairBin.id, qty_on_hand: input.qtyFailed }
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              product_id: record.product_id, lot_id: record.lot_id, movement_type: "TRANSFER", reference_type: "QC",
+              qty: input.qtyFailed, from_bin_id: waitQcBin.id, to_bin_id: repairBin.id, performed_by: input.inspectedBy,
+              notes: "QC ไม่ผ่าน (สินค้าเสีย): โอนเข้าสต็อกรอซ่อม",
+            }
+          });
+
+          // 🚨 รันเอกสารด้วย Numbering Service แทน Date.now()
+          // const rpJobNum = await generateDocumentNumber("REPAIR_JOB", tx);
+          const rpJobNum = `RP-QC-${Date.now()}`; // **แก้บรรทัดนี้ให้ใช้ Service ของคุณ**
+
+          await tx.repairJob.create({
+            data: {
+              job_number: rpJobNum,
+              product_id: record.product_id,
+              status: "WAIT_REPAIR",
+              issue_desc: `แจ้งซ่อมจาก QC (ใบตรวจ: ${record.id}) - เหตุผล: ${input.notes || "ไม่ระบุ"}`,
+              received_by: input.inspectedBy,
+            }
+          });
+        } 
         
-        if (techBin) {
-          // เพิ่มยอดเข้าสต็อกฝ่ายช่าง
+        // สาย B: แค่ "ประกอบผิด" -> ส่งแก้ไข (เข้าคลัง ASSEMBLY)
+        else {
+          const assemblyBin = await tx.bin.findFirst({ where: { code: "ASSEMBLY" } });
+          if (!assemblyBin) throw new Error("❌ ข้อมูลคลังผิดพลาด: ไม่พบคลัง 'ASSEMBLY'");
+
           await tx.stockItem.upsert({
-            where: { product_id_lot_id_bin_id: { product_id: record.product_id, lot_id: record.lot_id, bin_id: techBin.id } },
+            where: { product_id_lot_id_bin_id: { product_id: record.product_id, lot_id: record.lot_id, bin_id: assemblyBin.id } },
             update: { qty_on_hand: { increment: input.qtyFailed } },
-            create: { product_id: record.product_id, lot_id: record.lot_id, bin_id: techBin.id, qty_on_hand: input.qtyFailed }
+            create: { product_id: record.product_id, lot_id: record.lot_id, bin_id: assemblyBin.id, qty_on_hand: input.qtyFailed }
           });
 
           await tx.stockMovement.create({
             data: {
               product_id: record.product_id, lot_id: record.lot_id, movement_type: "TRANSFER", reference_type: "QC",
-              qty: input.qtyFailed, to_bin_id: techBin.id, performed_by: input.inspectedBy,
-              notes: "QC ไม่ผ่าน (สินค้าเสีย): โอนย้ายเข้าสต็อกฝ่ายช่างเพื่อส่งซ่อม",
+              qty: input.qtyFailed, from_bin_id: waitQcBin.id, to_bin_id: assemblyBin.id, performed_by: input.inspectedBy,
+              notes: "QC ไม่ผ่าน (ประกอบผิด): โอนกลับไปแก้ไขที่สายพานผลิต",
             }
           });
-        }
 
-        // ✨ แก้ไข 2: เปลี่ยนจากการสร้าง ServiceTicket เป็น RepairJob เพื่อให้เด้งในหน้างานซ่อม
-        await tx.repairJob.create({
-          data: {
-            job_number: `RP-QC-${Date.now()}`,
-            product_id: record.product_id,
-            status: "WAIT_REPAIR",
-            issue_desc: `แจ้งซ่อมจาก QC (อ้างอิงใบตรวจ: ${record.id}) - เหตุผล: ${input.notes || "ไม่ระบุ"}`,
-            received_by: input.inspectedBy,
-          }
-        });
-      } 
-      
-      // ==========================================
-      // สาย B: สินค้า "ไม่เสีย" (ประกอบผิด ฯลฯ) -> ส่งแก้ไข (กลับไปประกอบ/งานผลิต)
-      // ==========================================
-      else {
-        const prodBin = await tx.bin.findFirst({ where: { code: "PRODUCTION_BIN" } });
+          // 🚨 รันเอกสารด้วย Numbering Service แทน Date.now()
+          // const prdJobNum = await generateDocumentNumber("PRODUCTION_JOB", tx);
+          const prdJobNum = `PD-REWORK-${Date.now()}`; // **แก้บรรทัดนี้ให้ใช้ Service ของคุณ**
 
-        if (prodBin) {
-          // เพิ่มยอดกลับเข้าฝ่ายผลิต
-          await tx.stockItem.upsert({
-            where: { product_id_lot_id_bin_id: { product_id: record.product_id, lot_id: record.lot_id, bin_id: prodBin.id } },
-            update: { qty_on_hand: { increment: input.qtyFailed } },
-            create: { product_id: record.product_id, lot_id: record.lot_id, bin_id: prodBin.id, qty_on_hand: input.qtyFailed }
-          });
-
-          await tx.stockMovement.create({
+          await tx.productionJob.create({
             data: {
-              product_id: record.product_id, lot_id: record.lot_id, movement_type: "TRANSFER", reference_type: "QC",
-              qty: input.qtyFailed, to_bin_id: prodBin.id, performed_by: input.inspectedBy,
-              notes: "QC ไม่ผ่าน (ประกอบผิด/แก้ไข): โอนย้ายกลับไปแผนกประกอบเพื่อแก้ไข",
+              job_number: prdJobNum,
+              product_id: record.product_id,
+              warehouse_id: defaultWarehouse.id,
+              job_type: "REWORK", 
+              qty_planned: input.qtyFailed,
+              qty_produced: 0,
+              priority: "URGENT",
+              status: "PENDING",
+              notes: `งานแก้ไขจาก QC (ใบตรวจ: ${record.id}) - เหตุผล: ${input.notes}`,
             }
           });
         }
-
-        // 🎯 สร้างใบสั่งงานกลับไปฝ่ายผลิต (ประเภท: แก้ไขงาน)
-        await tx.productionJob.create({
-          data: {
-            job_number: `PD-REWORK-${Date.now()}`,
-            product_id: record.product_id,
-            warehouse_id: defaultWarehouse.id,
-            job_type: "REWORK", // ชนิดงาน: แก้ไข/ทำใหม่
-            qty_planned: input.qtyFailed,
-            qty_produced: 0,
-            priority: "URGENT",
-            status: "PENDING",
-            notes: `งานตีกลับจาก QC (อ้างอิงใบตรวจ: ${record.id}) ให้ทำการแก้ไข - เหตุผล: ${input.notes}`,
-          }
-        });
       }
     }
 
