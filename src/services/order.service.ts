@@ -13,6 +13,7 @@ import { OrderChannel } from "@prisma/client";
 import { writeMovement } from "./stock.service";
 import { nextOrderNumber, nextShipmentNumber } from "./numbering.service";
 import { createNotification } from "./notification.service";
+import { createJob as createProductionJob } from "./production.service";
 
 export interface CreateOrderInput {
   channel:      OrderChannel;
@@ -132,6 +133,86 @@ export async function pickOrder(input: PickInput) {
     where: { id: input.orderId },
     data:  { status: "PICKING" },
   });
+}
+
+export interface OrderLineAvailability {
+  lineId:      string;
+  productId:   string;
+  productName: string;
+  sku:         string;
+  unit:        string;
+  qtyOrdered:  number;
+  available:   number;
+  shortfall:   number;
+}
+
+/**
+ * เช็คว่าสินค้าใน order "พร้อมขาย" พอไหม — นับ stock เฉพาะคลังพร้อมขาย (type READY)
+ * ตามผัง Admin: รับ order → "สินค้าพร้อมขาย?" → ใช่=เบิก / ไม่=สั่งผลิต
+ */
+export async function getOrderAvailability(orderId: string): Promise<OrderLineAvailability[]> {
+  const order = await prisma.order.findUnique({
+    where:   { id: orderId },
+    include: { lines: { include: { product: { select: { name: true, sku: true, unit: true } } } } },
+  });
+  if (!order) throw new Error("ไม่พบคำสั่งซื้อ");
+
+  const result: OrderLineAvailability[] = [];
+  for (const line of order.lines) {
+    const agg = await prisma.stockItem.aggregate({
+      _sum:  { qty_on_hand: true },
+      where: { product_id: line.product_id, bin: { warehouse: { type: "READY" } } },
+    });
+    const available  = Number(agg._sum.qty_on_hand ?? 0);
+    const qtyOrdered = Number(line.qty);
+    result.push({
+      lineId:      line.id,
+      productId:   line.product_id,
+      productName: line.product.name,
+      sku:         line.product.sku,
+      unit:        line.product.unit,
+      qtyOrdered,
+      available,
+      shortfall:   Math.max(0, qtyOrdered - available),
+    });
+  }
+  return result;
+}
+
+export interface ProduceForOrderInput {
+  orderId:     string;
+  performedBy: string;
+  items:       Array<{ productId: string; qty: number }>;
+}
+
+/**
+ * สร้างงานผลิตสำหรับสินค้าที่ stock พร้อมขายไม่พอ
+ * ตามผัง: "สินค้าพร้อมขาย? → ไม่ → ทำรายการสั่งผลิต"
+ */
+export async function createProductionForOrder(input: ProduceForOrderInput) {
+  const order = await prisma.order.findUnique({ where: { id: input.orderId } });
+  if (!order) throw new Error("ไม่พบคำสั่งซื้อ");
+
+  const prodWarehouse = await prisma.warehouse.findFirst({
+    where: { type: "PRODUCTION_REPAIR", is_active: true },
+  });
+  if (!prodWarehouse) throw new Error("ไม่พบคลังฝ่ายผลิต (PRODUCTION_REPAIR)");
+
+  const jobs = [];
+  for (const item of input.items) {
+    if (item.qty <= 0) continue;
+    const job = await createProductionJob({
+      jobType:     "ASSEMBLY",
+      productId:   item.productId,
+      qtyPlanned:  item.qty,
+      warehouseId: prodWarehouse.id,
+      priority:    "URGENT",
+      notes:       `สั่งผลิตจากคำสั่งซื้อ ${order.order_number}`,
+    });
+    jobs.push(job);
+  }
+  if (jobs.length === 0) throw new Error("ไม่มีรายการที่ต้องผลิต");
+  return jobs;
 }
 
 export async function packOrder(orderId: string) {

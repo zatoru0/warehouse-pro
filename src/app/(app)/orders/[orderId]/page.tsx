@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { Plus, Trash2, Check, Truck } from "lucide-react";
+import { Plus, Trash2, Check, Truck, Factory } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -35,6 +35,10 @@ const STATUS_COLORS: Record<string, string> = {
 type Product = { id: string; name: string; sku: string; unit: string; sale_price: number | null };
 type Bin = { id: string; code: string; zone_code: string | null; warehouse: { name: string; code: string; type: string } };
 type Lot = { id: string; lot_number: string; product_id: string };
+type Availability = {
+  lineId: string; productId: string; productName: string; sku: string;
+  unit: string; qtyOrdered: number; available: number; shortfall: number;
+};
 
 export default function OrderDetailPage({ params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = use(params);
@@ -44,8 +48,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ orderId:
   const { data: productsRes } = useSWR<{ products: Product[] }>("/api/products?limit=200", fetcher);
   const { data: binsData } = useSWR("/api/bins", fetcher);
   const { data: lotsData } = useSWR("/api/lots", fetcher);
+  const { data: availability, mutate: mutateAvail } = useSWR<Availability[]>(
+    order?.status === "CONFIRMED" ? `/api/orders/${orderId}/availability` : null,
+    fetcher
+  );
   const bins: Bin[] = Array.isArray(binsData) ? binsData : [];
   const lots: Lot[] = Array.isArray(lotsData) ? lotsData : [];
+  const shortfallItems = (availability ?? []).filter((a) => a.shortfall > 0);
 
   // Add line state
   const [productId, setProductId] = useState("");
@@ -128,6 +137,28 @@ export default function OrderDetailPage({ params }: { params: Promise<{ orderId:
       ...prev,
       [lineId]: { ...prev[lineId] ?? { binId: "", lotId: "", qty: 0 }, [field]: value },
     }));
+  }
+
+  async function produceShortfall() {
+    const items = shortfallItems.map((a) => ({ product_id: a.productId, qty: a.shortfall }));
+    if (items.length === 0) return;
+    if (!confirm(`สร้างงานผลิต ${items.length} รายการสำหรับสินค้าที่ขาด?`)) return;
+    setError("");
+    setWorking(true);
+    const res = await fetch(`/api/orders/${orderId}/produce`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+    if (!res.ok) {
+      const d = await res.json();
+      setError(d.error ?? "เกิดข้อผิดพลาด");
+    } else {
+      const d = await res.json();
+      alert(`สร้างงานผลิต ${d.created} รายการแล้ว — ติดตามได้ที่เมนู "การผลิต"`);
+      await mutateAvail();
+    }
+    setWorking(false);
   }
 
   async function doPick() {
@@ -345,6 +376,68 @@ export default function OrderDetailPage({ params }: { params: Promise<{ orderId:
             ยืนยันคำสั่งซื้อ
           </Button>
         </div>
+      )}
+
+      {/* ความพร้อมสินค้า — ตามผัง "สินค้าพร้อมขาย?" */}
+      {isConfirmed && availability && availability.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>ความพร้อมของสินค้า (คลังพร้อมขาย)</span>
+              {shortfallItems.length === 0 ? (
+                <span className="rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-semibold text-green-600">
+                  พร้อมขายครบ — เบิกได้เลย
+                </span>
+              ) : (
+                <span className="rounded-full bg-red-600/10 px-2.5 py-0.5 text-xs font-semibold text-red-600">
+                  ขาด {shortfallItems.length} รายการ
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">สินค้า</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">สั่ง</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">พร้อมขาย</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">ขาด</th>
+                </tr>
+              </thead>
+              <tbody>
+                {availability.map((a) => (
+                  <tr key={a.lineId} className="border-b border-border last:border-0">
+                    <td className="px-4 py-2.5">
+                      <p className="font-medium">{a.productName}</p>
+                      <p className="text-xs text-muted-foreground">{a.sku}</p>
+                    </td>
+                    <td className="px-4 py-2.5 text-right">{a.qtyOrdered.toLocaleString()} {a.unit}</td>
+                    <td className="px-4 py-2.5 text-right text-muted-foreground">{a.available.toLocaleString()}</td>
+                    <td className={`px-4 py-2.5 text-right font-medium ${a.shortfall > 0 ? "text-red-600" : "text-green-600"}`}>
+                      {a.shortfall > 0 ? a.shortfall.toLocaleString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {shortfallItems.length > 0 && (
+              <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
+                <p className="text-xs text-muted-foreground">
+                  สินค้าพร้อมขายไม่พอ — สั่งผลิตเพื่อเติมของที่ขาด (งานผลิตจะถูกตั้งเป็นด่วน)
+                </p>
+                <Button
+                  onClick={produceShortfall}
+                  disabled={working}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-semibold shrink-0"
+                >
+                  <Factory className="h-4 w-4 mr-1" />
+                  สั่งผลิตของที่ขาด ({shortfallItems.length})
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {isConfirmed && (
