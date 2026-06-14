@@ -213,8 +213,14 @@ export default function ReceivingDetailPage({
             <p className="font-medium">{TYPE_LABELS[job.receiving_type]}</p>
           </div>
           <div>
-            <p className="text-muted-foreground">ผู้จัดหา</p>
-            <p className="font-medium">{job.supplier?.name ?? "—"}</p>
+            <p className="text-muted-foreground">
+              {job.receiving_type === "REPAIR" ? "ลูกค้า (เจ้าของเครื่อง)" : "ผู้จัดหา"}
+            </p>
+            <p className="font-medium">
+              {job.receiving_type === "REPAIR"
+                ? job.customer?.name ?? "—"
+                : job.supplier?.name ?? "—"}
+            </p>
           </div>
           <div>
             <p className="text-muted-foreground">ผู้รับเข้า</p>
