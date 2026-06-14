@@ -48,7 +48,7 @@ const nav: { label: string; items: Item[] }[] = [
     label: "ฝ่ายรับเข้า",
     items: [
       { href: "/receiving", icon: ArrowDownToLine, label: "รับสินค้า",     dept: ["INBOUND"] },
-      { href: "/qc",        icon: FlaskConical,    label: "ตรวจสอบคุณภาพ", dept: ["QC", "INBOUND", "PRODUCTION"] },
+      { href: "/qc",        icon: FlaskConical,    label: "ตรวจสอบคุณภาพ", dept: ["QC", "ADMIN_DEPT"] },
     ],
   },
   {
