@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { Plus, Check } from "lucide-react";
+import { Plus, Check, Printer } from "lucide-react";
 
 function NumberCell({
   initial,
@@ -213,8 +213,14 @@ export default function ReceivingDetailPage({
             <p className="font-medium">{TYPE_LABELS[job.receiving_type]}</p>
           </div>
           <div>
-            <p className="text-muted-foreground">ผู้จัดหา</p>
-            <p className="font-medium">{job.supplier?.name ?? "—"}</p>
+            <p className="text-muted-foreground">
+              {job.receiving_type === "REPAIR" ? "ลูกค้า (เจ้าของเครื่อง)" : "ผู้จัดหา"}
+            </p>
+            <p className="font-medium">
+              {job.receiving_type === "REPAIR"
+                ? job.customer?.name ?? "—"
+                : job.supplier?.name ?? "—"}
+            </p>
           </div>
           <div>
             <p className="text-muted-foreground">ผู้รับเข้า</p>
@@ -400,9 +406,23 @@ export default function ReceivingDetailPage({
                       </td>
                       <td className="px-4 py-3">
                         {isCompleted ? (
-                          <span className="text-xs font-mono">
-                            {lots?.find((l) => l.id === line.lot_id)?.lot_number ?? "—"}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono">
+                              {lots?.find((l) => l.id === line.lot_id)?.lot_number ?? "—"}
+                            </span>
+                            {line.lot_id && (
+                              <a
+                                href={`/lots/${line.lot_id}/print`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-lg bg-blue-500/10 px-2 py-0.5 text-xs text-blue-600 hover:bg-blue-500/20"
+                                title="พิมพ์บาร์โค้ดล็อต"
+                              >
+                                <Printer className="h-3 w-3" />
+                                พิมพ์
+                              </a>
+                            )}
+                          </div>
                         ) : (
                           <div className="flex items-center gap-1">
                             <select
@@ -425,6 +445,17 @@ export default function ReceivingDetailPage({
                             >
                               <Plus className="h-3 w-3" />
                             </button>
+                            {line.lot_id && (
+                              <a
+                                href={`/lots/${line.lot_id}/print`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="rounded-lg bg-blue-500/10 px-2 py-1 text-xs text-blue-600 hover:bg-blue-500/20"
+                                title="พิมพ์บาร์โค้ดล็อต"
+                              >
+                                <Printer className="h-3 w-3" />
+                              </a>
+                            )}
                           </div>
                         )}
                       </td>

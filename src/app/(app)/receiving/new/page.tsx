@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,17 +18,39 @@ const TYPE_OPTIONS = [
 
 type Warehouse = { id: string; name: string; code: string; type: string };
 type Supplier = { id: string; name: string; code: string };
+type Customer = { id: string; name: string; code: string };
+
+const needsCustomer = (t: string) => t === "REPAIR";
+const needsSupplier = (t: string) => t === "NEW_GOODS" || t === "PARTS";
+
+// ตามผัง Update Weekly: REPAIR → สต็อกฝ่ายช่าง (PRODUCTION_REPAIR), อื่นๆ → สต็อกหลัก (STOCK)
+const allowedWarehouseType = (t: string) =>
+  t === "REPAIR" ? "PRODUCTION_REPAIR" : "STOCK";
 
 export default function NewReceivingPage() {
   const router = useRouter();
   const { data: warehousesData } = useSWR("/api/warehouses", fetcher);
   const { data: suppliersData } = useSWR("/api/suppliers", fetcher);
+  const { data: customersData } = useSWR("/api/customers", fetcher);
   const warehouses: Warehouse[] = Array.isArray(warehousesData) ? warehousesData : [];
   const suppliers: Supplier[] = Array.isArray(suppliersData) ? suppliersData : [];
+  const customers: Customer[] = Array.isArray(customersData) ? customersData : [];
 
   const [type, setType] = useState("NEW_GOODS");
   const [warehouseId, setWarehouseId] = useState("");
   const [supplierId, setSupplierId] = useState("");
+  const [customerId, setCustomerId] = useState("");
+
+  const filteredWarehouses = warehouses.filter(
+    (w) => w.type === allowedWarehouseType(type)
+  );
+
+  // reset warehouse selection ถ้าคลังที่เลือกไว้ไม่อยู่ใน type ใหม่
+  useEffect(() => {
+    if (warehouseId && !filteredWarehouses.some((w) => w.id === warehouseId)) {
+      setWarehouseId("");
+    }
+  }, [type, warehouseId, filteredWarehouses]);
   const [referenceDoc, setReferenceDoc] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
@@ -45,7 +67,8 @@ export default function NewReceivingPage() {
       body: JSON.stringify({
         receiving_type: type,
         warehouse_id: warehouseId,
-        supplier_id: supplierId || null,
+        supplier_id: needsSupplier(type) ? supplierId || null : null,
+        customer_id: needsCustomer(type) ? customerId || null : null,
         reference_doc: referenceDoc || null,
         notes: notes || null,
       }),
@@ -53,7 +76,12 @@ export default function NewReceivingPage() {
     const data = await res.json();
 
     if (!res.ok) {
-      setError(data.error?.formErrors?.[0] ?? "เกิดข้อผิดพลาด");
+      const fieldErrors = data.error?.fieldErrors;
+      const firstFieldError =
+        fieldErrors?.supplier_id?.[0] ??
+        fieldErrors?.customer_id?.[0] ??
+        fieldErrors?.warehouse_id?.[0];
+      setError(firstFieldError ?? data.error?.formErrors?.[0] ?? "เกิดข้อผิดพลาด");
       setSubmitting(false);
       return;
     }
@@ -102,9 +130,14 @@ export default function NewReceivingPage() {
               </select>
             </div>
 
-            {/* คลังปลายทาง */}
+            {/* คลังปลายทาง — filter ตามประเภทรับเข้า */}
             <div className="space-y-2">
-              <Label htmlFor="warehouse">คลังปลายทาง</Label>
+              <Label htmlFor="warehouse">
+                คลังปลายทาง{" "}
+                <span className="text-xs font-normal text-muted-foreground">
+                  ({type === "REPAIR" ? "สต็อกฝ่ายช่าง" : "สต็อกหลัก"})
+                </span>
+              </Label>
               <select
                 id="warehouse"
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600/50"
@@ -113,31 +146,59 @@ export default function NewReceivingPage() {
                 required
               >
                 <option value="">-- เลือกคลัง --</option>
-                {(warehouses ?? []).map((w) => (
+                {filteredWarehouses.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name} ({w.code})
                   </option>
                 ))}
               </select>
+              {filteredWarehouses.length === 0 && (
+                <p className="text-xs text-destructive">
+                  ไม่มีคลังประเภท{type === "REPAIR" ? "ฝ่ายช่าง" : "สต็อกหลัก"}ในระบบ
+                </p>
+              )}
             </div>
 
-            {/* ผู้จัดหา (optional) */}
-            <div className="space-y-2">
-              <Label htmlFor="supplier">ผู้จัดหา (ไม่บังคับ)</Label>
-              <select
-                id="supplier"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600/50"
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-              >
-                <option value="">-- ไม่ระบุ --</option>
-                {(suppliers ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* แหล่งที่มา — แยกตามประเภท */}
+            {needsSupplier(type) && (
+              <div className="space-y-2">
+                <Label htmlFor="supplier">ผู้จัดหา</Label>
+                <select
+                  id="supplier"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600/50"
+                  value={supplierId}
+                  onChange={(e) => setSupplierId(e.target.value)}
+                  required
+                >
+                  <option value="">-- เลือกผู้จัดหา --</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {needsCustomer(type) && (
+              <div className="space-y-2">
+                <Label htmlFor="customer">ลูกค้า (เจ้าของเครื่อง)</Label>
+                <select
+                  id="customer"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600/50"
+                  value={customerId}
+                  onChange={(e) => setCustomerId(e.target.value)}
+                  required
+                >
+                  <option value="">-- เลือกลูกค้า --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* เอกสารอ้างอิง */}
             <div className="space-y-2">
