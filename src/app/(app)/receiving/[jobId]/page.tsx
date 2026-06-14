@@ -10,16 +10,17 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { Plus, Check } from "lucide-react";
 
-function QtyCell({
+function NumberCell({
   initial,
   onCommit,
+  width = "w-24",
 }: {
   initial: number;
   onCommit: (value: number) => void;
+  width?: string;
 }) {
   const [value, setValue] = useState<string>(String(initial));
 
-  // sync local state when server value changes (after refetch)
   useEffect(() => {
     setValue(String(initial));
   }, [initial]);
@@ -29,7 +30,7 @@ function QtyCell({
       type="number"
       min="0"
       step="any"
-      className="w-24 ml-auto"
+      className={`${width} ml-auto`}
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onBlur={() => {
@@ -44,9 +45,9 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const TYPE_LABELS: Record<string, string> = {
   NEW_GOODS: "สินค้าใหม่",
-  CLAIM:     "เคลม",
-  REPAIR:    "ซ่อม",
   PARTS:     "อะไหล่ / ชิ้นส่วน",
+  REPAIR:    "รับเครื่องซ่อม",
+  CLAIM:     "เคลม",
   RETURN:    "คืนสินค้า",
 };
 
@@ -94,6 +95,7 @@ export default function ReceivingDetailPage({
   // Add line form
   const [productId, setProductId] = useState("");
   const [expectedQty, setExpectedQty] = useState("");
+  const [unitCost, setUnitCost] = useState("");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
 
@@ -124,6 +126,7 @@ export default function ReceivingDetailPage({
       body: JSON.stringify({
         product_id: productId,
         expected_qty: Number(expectedQty),
+        unit_cost: unitCost === "" ? undefined : Number(unitCost),
       }),
     });
 
@@ -136,6 +139,7 @@ export default function ReceivingDetailPage({
 
     setProductId("");
     setExpectedQty("");
+    setUnitCost("");
     setAdding(false);
     await mutate();
   }
@@ -247,7 +251,7 @@ export default function ReceivingDetailPage({
                 {error}
               </div>
             )}
-            <form onSubmit={addLine} className="grid grid-cols-[2fr_1fr_auto] gap-3">
+            <form onSubmit={addLine} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-3">
               <div className="space-y-1">
                 <Label htmlFor="product" className="text-xs">สินค้า</Label>
                 <select
@@ -278,6 +282,18 @@ export default function ReceivingDetailPage({
                   required
                 />
               </div>
+              <div className="space-y-1">
+                <Label htmlFor="cost" className="text-xs">ต้นทุน/หน่วย (บาท)</Label>
+                <Input
+                  id="cost"
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.00"
+                  value={unitCost}
+                  onChange={(e) => setUnitCost(e.target.value)}
+                />
+              </div>
               <div className="flex items-end">
                 <Button
                   type="submit"
@@ -300,7 +316,7 @@ export default function ReceivingDetailPage({
             รายการสินค้า ({job.lines.length})
             {!isCompleted && (
               <span className="ml-3 text-xs font-normal text-muted-foreground">
-                — กรอกจำนวน + เลือก Bin + Lot ทุกแถว แล้วกดยืนยัน
+                — กรอกจำนวน + ต้นทุน + เลือก Bin + Lot ทุกแถว แล้วกดยืนยัน
               </span>
             )}
           </CardTitle>
@@ -317,6 +333,8 @@ export default function ReceivingDetailPage({
                   <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">สินค้า</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">จำนวน</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">รับจริง</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">ต้นทุน/หน่วย</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">รวม</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Bin</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Lot</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">สถานะ</th>
@@ -326,6 +344,7 @@ export default function ReceivingDetailPage({
                 {job.lines.map((line: any) => {
                   const productLots = (lots ?? []).filter((l) => l.product_id === line.product_id);
                   const ready = line.bin_id && line.lot_id && Number(line.received_qty) > 0;
+                  const lineTotal = Number(line.received_qty) * Number(line.unit_cost);
                   return (
                     <tr key={line.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-3">
@@ -339,11 +358,25 @@ export default function ReceivingDetailPage({
                         {isCompleted ? (
                           Number(line.received_qty).toLocaleString()
                         ) : (
-                          <QtyCell
+                          <NumberCell
                             initial={Number(line.received_qty)}
                             onCommit={(v) => updateLine(line.id, { received_qty: v })}
                           />
                         )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {isCompleted ? (
+                          Number(line.unit_cost).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                        ) : (
+                          <NumberCell
+                            initial={Number(line.unit_cost)}
+                            onCommit={(v) => updateLine(line.id, { unit_cost: v })}
+                            width="w-28"
+                          />
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium tabular-nums">
+                        {lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3">
                         {isCompleted ? (
@@ -411,6 +444,20 @@ export default function ReceivingDetailPage({
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-border bg-muted/30">
+                  <td colSpan={4} className="px-4 py-3 text-right text-sm font-semibold">
+                    มูลค่ารับเข้ารวม
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm font-bold tabular-nums text-red-600">
+                    {job.lines
+                      .reduce((sum: number, l: any) => sum + Number(l.received_qty) * Number(l.unit_cost), 0)
+                      .toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {" "}บาท
+                  </td>
+                  <td colSpan={3} />
+                </tr>
+              </tfoot>
             </table>
           )}
         </CardContent>

@@ -26,12 +26,14 @@ export interface AddLineInput {
   jobId:        string;
   productId:    string;
   expectedQty:  number;
+  unitCost?:    number;
   notes?:       string | null;
 }
 
 export interface UpdateLineInput {
   lineId:       string;
   receivedQty?: number;
+  unitCost?:    number;
   binId?:       string | null;
   lotId?:       string | null;
 }
@@ -57,6 +59,7 @@ export async function addLine(input: AddLineInput) {
       receiving_job_id: input.jobId,
       product_id:       input.productId,
       expected_qty:     input.expectedQty,
+      unit_cost:        input.unitCost ?? 0,
       notes:            input.notes,
     },
   });
@@ -67,6 +70,7 @@ export async function updateLine(input: UpdateLineInput) {
     where: { id: input.lineId },
     data: {
       ...(input.receivedQty !== undefined && { received_qty: input.receivedQty }),
+      ...(input.unitCost !== undefined    && { unit_cost:     input.unitCost }),
       ...(input.binId !== undefined        && { bin_id:        input.binId }),
       ...(input.lotId !== undefined        && { lot_id:        input.lotId }),
     },

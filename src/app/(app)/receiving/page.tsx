@@ -32,9 +32,9 @@ const STATUS_LABELS: Record<string, string> = {
 
 const TYPE_LABELS: Record<string, string> = {
   NEW_GOODS: "สินค้าใหม่",
+  PARTS:     "อะไหล่ / ชิ้นส่วน",
+  REPAIR:    "รับเครื่องซ่อม",
   CLAIM:     "เคลม",
-  REPAIR:    "ซ่อม",
-  PARTS:     "อะไหล่",
   RETURN:    "คืนสินค้า",
 };
 

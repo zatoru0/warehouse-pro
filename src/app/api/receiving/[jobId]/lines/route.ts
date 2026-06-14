@@ -16,6 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
     jobId,
     productId:   parsed.data.product_id,
     expectedQty: parsed.data.expected_qty,
+    unitCost:    parsed.data.unit_cost,
     notes:       parsed.data.notes,
   });
   return NextResponse.json(line, { status: 201 });
@@ -26,12 +27,13 @@ export async function PATCH(req: NextRequest) {
   if (error) return error;
 
   const body = await req.json();
-  const { lineId, received_qty, bin_id, lot_id } = body;
+  const { lineId, received_qty, unit_cost, bin_id, lot_id } = body;
   if (!lineId) return NextResponse.json({ error: "ต้องระบุ lineId" }, { status: 422 });
 
   const line = await updateLine({
     lineId,
     receivedQty: received_qty,
+    unitCost:    unit_cost,
     binId:       bin_id,
     lotId:       lot_id,
   });

@@ -12,10 +12,8 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const TYPE_OPTIONS = [
   { value: "NEW_GOODS", label: "สินค้าใหม่" },
-  { value: "CLAIM",     label: "เคลม" },
-  { value: "REPAIR",    label: "ซ่อม" },
   { value: "PARTS",     label: "อะไหล่ / ชิ้นส่วน" },
-  //{ value: "RETURN",    label: "คืนสินค้า" },
+  { value: "REPAIR",    label: "รับเครื่องซ่อม" },
 ];
 
 type Warehouse = { id: string; name: string; code: string; type: string };

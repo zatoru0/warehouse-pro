@@ -445,6 +445,7 @@ model ReceivingLine {
   lot_id           String?
   expected_qty     Decimal
   received_qty     Decimal  @default(0)
+  unit_cost        Decimal  @default(0)
   bin_id           String?
   notes            String?
   created_at       DateTime @default(now())
