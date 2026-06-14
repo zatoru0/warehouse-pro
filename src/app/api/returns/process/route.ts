@@ -5,10 +5,12 @@ import { Department } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
   // 1. เช็กสิทธิ์
+  // ตามผัง: ฝ่ายบริการหลังการขายเป็นเจ้าของ flow ส่งคืน/ใบลดหนี้ + QC/Admin/รับเข้าร่วม
   const { error, user } = await requireDepartment(req, [
-    Department.QC, 
-    Department.ADMIN_DEPT, 
-    Department.INBOUND
+    Department.QC,
+    Department.ADMIN_DEPT,
+    Department.INBOUND,
+    Department.AFTER_SALES
   ]);
   
   if (error) return error;

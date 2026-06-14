@@ -12,7 +12,8 @@ const issueSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const { error, user } = await requireDepartment(req, ["PRODUCTION"]);
+  // เบิกเพื่อผลิต — ตามผัง "พี่ยู(รับเข้า) เบิกจ่ายเพื่อผลิต" + ฝ่ายผลิตเบิกเองได้
+  const { error, user } = await requireDepartment(req, ["PRODUCTION", "INBOUND"]);
   if (error) return error;
 
   const body = await req.json();

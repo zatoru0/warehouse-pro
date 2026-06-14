@@ -37,7 +37,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { error, user } = await requireDepartment(req, ["PRODUCTION"]);
+  // ตามผัง: ฝ่ายบริการหลังการขายเป็นคน "ขอแยกชิ้นส่วน" + ฝ่ายผลิตดำเนินการ
+  const { error, user } = await requireDepartment(req, ["PRODUCTION", "AFTER_SALES"]);
   if (error) return error;
 
   const body   = await req.json();

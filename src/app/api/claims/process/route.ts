@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { Department } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
-  const { error, user } = await requireDepartment(req, [Department.QC, Department.ADMIN_DEPT]);
+  // ตามผัง: ฝ่ายบริการหลังการขายเป็นเจ้าของ flow เคลม + Admin/QC ตรวจสภาพร่วม
+  const { error, user } = await requireDepartment(req, [Department.QC, Department.ADMIN_DEPT, Department.AFTER_SALES]);
   if (error) return error;
 
   try {
