@@ -80,8 +80,10 @@ export default function RegisterPage() {
 
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-xl">สมัครใช้งาน</CardTitle>
-            <CardDescription>สร้างบัญชีใหม่เพื่อเข้าใช้ระบบ</CardDescription>
+            <CardTitle className="text-xl">ตั้งค่าผู้ดูแลระบบ</CardTitle>
+            <CardDescription>
+              สำหรับสร้างบัญชีผู้ดูแลคนแรกของระบบเท่านั้น — บัญชีพนักงานอื่นๆ ให้ผู้ดูแลสร้างผ่านหน้า &quot;จัดการผู้ใช้&quot;
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleRegister} className="space-y-4">
