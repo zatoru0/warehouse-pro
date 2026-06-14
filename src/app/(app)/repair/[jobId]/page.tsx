@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
+import { Wrench, ArrowRightLeft, PackageOpen } from "lucide-react"; // Import ไอคอนให้ดูสวยขึ้น
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -49,10 +50,18 @@ export default function RepairDetailPage({ params }: { params: Promise<{ jobId: 
       body:    JSON.stringify({ action: act, repairNote, ...extra }),
     });
     const data = await res.json();
-    if (!res.ok) { setError(data.error ?? "เกิดข้อผิดพลาด"); setWorking(false); return; }
+    if (!res.ok) { 
+  setError(typeof data.error === 'string' ? data.error : JSON.stringify(data.error) ?? "เกิดข้อผิดพลาด"); 
+  setWorking(false); 
+  return; 
+}
     await mutate();
     setWorking(false);
     setRepairNote("");
+    
+    // Redirect after specific actions to improve flow
+    if (act === "request_disassembly") router.push("/disassembly/new");
+    else if (act.startsWith("complete")) router.push("/qc"); 
   }
 
   if (isLoading) return <div className="py-20 text-center text-sm text-muted-foreground">กำลังโหลด…</div>;
@@ -169,7 +178,7 @@ export default function RepairDetailPage({ params }: { params: Promise<{ jobId: 
       {/* Actions */}
       {!isDone && (
         <Card>
-          <CardHeader><CardTitle className="text-sm">ดำเนินการ</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm">ดำเนินการ (อิงตาม Flowchart)</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>บันทึกการซ่อม</Label>
@@ -182,51 +191,80 @@ export default function RepairDetailPage({ params }: { params: Promise<{ jobId: 
               />
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-3">
               {job.status === "WAIT_REPAIR" && (
                 <Button
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-blue-600 hover:bg-blue-700 text-white w-full"
                   onClick={() => action("start")}
                   disabled={working}
                 >
-                  เริ่มซ่อม
+                  เริ่มดำเนินการซ่อม
                 </Button>
               )}
+              
               {job.status === "IN_REPAIR" && (
-                <>
+                <div className="grid gap-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                      onClick={() => action("complete_qc_customer")}
+                      disabled={working}
+                    >
+                      ส่งคืนลูกค้า (ต้องผ่าน QC ก่อน)
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      className="border-purple-500 text-purple-600 hover:bg-purple-50"
+                      onClick={() => action("complete_qc_internal")}
+                      disabled={working}
+                    >
+                      ส่งคืนคลัง (ต้องผ่าน QC ก่อน)
+                    </Button>
+                  </div>
+                  
+                  <div className="relative my-2">
+                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-muted-foreground/30" /></div>
+                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">หรือ (ถ้าซ่อมไม่ได้)</span></div>
+                  </div>
+
                   <Button
-                    className="bg-purple-600 hover:bg-purple-700 text-white"
-                    onClick={() => action("complete_qc")}
+                    variant="outline"
+                    className="border-amber-500 text-amber-600 hover:bg-amber-50"
+                    onClick={() => action("request_disassembly")}
                     disabled={working}
                   >
-                    ซ่อมเสร็จ → ส่ง QC
+                    ขอแยกชิ้นส่วน (Disassembly)
                   </Button>
-                  <Button
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => action("complete")}
-                    disabled={working}
-                  >
-                    ซ่อมเสร็จ (ไม่ต้อง QC)
-                  </Button>
-                </>
+                </div>
               )}
+
+              {/* ✨ อัปเดตใหม่: ตรวจสอบสถานะรอ QC และผลการตรวจ */}
               {job.status === "WAIT_QC" && (
-                <Button
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => action("complete")}
-                  disabled={working}
-                >
-                  QC ผ่าน → เสร็จสิ้น
-                </Button>
-              )}
-              {job.status !== "CANCELLED" && (
-                <Button
-                  className="bg-muted hover:bg-muted/80 text-destructive border border-destructive/30"
-                  onClick={() => action("cancel")}
-                  disabled={working}
-                >
-                  ยกเลิกงาน
-                </Button>
+                <>
+                  {job.qc_records?.some((q: any) => q.result === "PASS") ? (
+                    <Button
+                      className="bg-green-600 hover:bg-green-700 text-white w-full text-base py-6"
+                      onClick={() => action("send_to_shipping")}
+                      disabled={working}
+                    >
+                      ✓ ยืนยันและส่งไปยังการจัดส่ง
+                    </Button>
+                  ) : job.qc_records?.some((q: any) => q.result === "FAIL") ? (
+                    <Button
+                      className="bg-red-600 hover:bg-red-700 text-white w-full"
+                      onClick={() => action("start")} // ส่งกลับไปสถานะ IN_REPAIR
+                      disabled={working}
+                    >
+                      ✕ ไม่ผ่าน QC → ดึงกลับมาซ่อมใหม่
+                    </Button>
+                  ) : (
+                    <div className="text-center text-sm font-medium text-amber-600 bg-amber-50 py-3 rounded-lg border border-amber-200">
+                      กำลังรอฝ่าย QC บันทึกผลการตรวจสอบ...
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </CardContent>

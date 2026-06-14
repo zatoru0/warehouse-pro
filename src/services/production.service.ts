@@ -2,7 +2,7 @@
  * Production workflow — สร้างงานผลิต → เริ่มงาน → บันทึกผลผลิต (ส่ง QC อัตโนมัติได้)
  *
  * Lifecycle:
- *   PENDING → IN_PROGRESS → COMPLETED
+ * PENDING → IN_PROGRESS → COMPLETED
  */
 import { prisma } from "@/lib/prisma";
 import { ProductionPriority } from "@prisma/client";
@@ -68,7 +68,7 @@ export async function startJob(jobId: string) {
 }
 
 /**
- * บันทึกผลผลิต + ส่ง QC อัตโนมัติถ้าสินค้าต้องตรวจ
+ * บันทึกผลผลิต + ส่ง QC อัตโนมัติถ้าสินค้าต้องตรวจ + ✨ เพิ่มยอดเข้าสต็อก
  */
 export async function completeJob(input: CompleteJobInput) {
   const { jobId, qtyProduced, sendToQc, performedBy, notes } = input;
@@ -82,27 +82,85 @@ export async function completeJob(input: CompleteJobInput) {
     throw new Error("งานเสร็จสิ้นแล้ว");
   }
 
-  const updated = await prisma.productionJob.update({
-    where: { id: jobId },
-    data: {
-      status:       "COMPLETED",
-      qty_produced: qtyProduced,
-      completed_at: new Date(),
-      notes:        notes ?? job.notes,
-    },
-  });
-
-  if (sendToQc && job.product.allow_qc && qtyProduced > 0) {
-    await prisma.qcRecord.create({
+  // ✨ ใช้ Transaction มัดรวมการอัปเดตงานและสต็อกให้ทำพร้อมกัน
+  const result = await prisma.$transaction(async (tx) => {
+    
+    // 1. อัปเดตสถานะใบงานเป็น COMPLETED
+    const updatedJob = await tx.productionJob.update({
+      where: { id: jobId },
       data: {
-        production_job_id: jobId,
-        product_id:        job.product_id,
-        lot_id:            job.lot_id,
-        qty_inspected:     qtyProduced,
-        inspected_by:      performedBy,
+        status:       "COMPLETED",
+        qty_produced: qtyProduced,
+        completed_at: new Date(),
+        notes:        notes ?? job.notes,
       },
     });
-  }
 
-  return updated;
+    // 2. สร้างใบ QC (ถ้าจำเป็น)
+    if (sendToQc && job.product.allow_qc && qtyProduced > 0) {
+      await tx.qcRecord.create({
+        data: {
+          production_job_id: jobId,
+          product_id:        job.product_id,
+          lot_id:            job.lot_id,
+          qty_inspected:     qtyProduced,
+          inspected_by:      performedBy,
+        },
+      });
+    }
+
+    // 3. ✨ ส่วนที่เพิ่มใหม่: ดันของเข้าสต็อกทันทีเมื่อยอดผลิตสำเร็จ
+    if (qtyProduced > 0) {
+      // หาตำแหน่งวางของ (Bin) ภายในคลังที่ทำงานอยู่
+      const targetBin = await tx.bin.findFirst({
+        where: { warehouse_id: job.warehouse_id }
+      });
+
+      if (targetBin) {
+        // จัดการ Lot ป้องกันค่าว่าง
+        let currentLotId = job.lot_id;
+        if (!currentLotId) {
+          const fallbackLot = await tx.lot.findFirst({ where: { product_id: job.product_id } }) 
+                           || await tx.lot.create({ data: { product_id: job.product_id, lot_number: `PD-${Date.now()}`, barcode: `PD-${Date.now()}`, status: "ACTIVE" } });
+          currentLotId = fallbackLot.id;
+        }
+
+        // 3.1 เพิ่มยอดเข้า StockItem
+        await tx.stockItem.upsert({
+          where: {
+            product_id_lot_id_bin_id: {
+              product_id: job.product_id,
+              lot_id:     currentLotId,
+              bin_id:     targetBin.id,
+            }
+          },
+          update: { qty_on_hand: { increment: qtyProduced } },
+          create: {
+            product_id:  job.product_id,
+            lot_id:      currentLotId,
+            bin_id:      targetBin.id,
+            qty_on_hand: qtyProduced,
+          }
+        });
+
+        // 3.2 บันทึกประวัติการเคลื่อนไหวของสต็อก (StockMovement)
+        await tx.stockMovement.create({
+          data: {
+            product_id:     job.product_id,
+            lot_id:         currentLotId,
+            movement_type:  "RECEIVE",
+            reference_type: "PRODUCTION",
+            qty:            qtyProduced,
+            to_bin_id:      targetBin.id,
+            performed_by:   performedBy,
+            notes:          `รับเข้าสินค้าจากงานผลิต (ใบงาน: ${job.job_number})`,
+          }
+        });
+      }
+    }
+
+    return updatedJob;
+  });
+
+  return result;
 }
