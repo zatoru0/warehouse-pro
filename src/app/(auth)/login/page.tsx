@@ -97,12 +97,6 @@ export default function LoginPage() {
                 {loading ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}
               </Button>
             </form>
-            <p className="mt-4 text-center text-sm text-muted-foreground">
-              ยังไม่มีบัญชี?{" "}
-              <Link href="/register" className="text-red-500 hover:underline">
-                สมัครใช้งาน
-              </Link>
-            </p>
           </CardContent>
         </Card>
       </div>
